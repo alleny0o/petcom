@@ -35,7 +35,7 @@ public/
 ├── account · change_password
 │
 ├── my_orders · new_order · view_order      (customer)
-├── queue · process_order · phone_order     (staff)
+├── queue · process_order                   (staff)
 │
 ├── manage_*          (admin: customers, users, compounds, isotopes...)
 ├── reports

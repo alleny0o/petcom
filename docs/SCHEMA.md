@@ -18,6 +18,10 @@ INSTITUTE                         (e.g. NCI, NIMH)
 A customer's institute, lab, and supervising PI are locked when the
 account is created. Only an admin can change them later.
 
+Every order is created by the customer themselves, by logging in and
+placing it. There is no other way to create an order (no phone-in /
+staff-on-behalf-of-customer path — cut for complexity).
+
 ---
 
 ## What an order points at
@@ -48,6 +52,9 @@ ORDER also has:
 - Order IDs always increment, never reused.
 - `cost_snapshot` is copied onto the order when placed, so old reports stay
   correct if a compound's cost changes later.
+- Status values: `pending`, `accepted`, `completed`, `canceled`. A returned
+  order goes back to `pending` (no separate "returned" status) — the audit
+  log still records that the return happened.
 
 ---
 
@@ -97,7 +104,9 @@ failed-login count, lockout timestamp, active flag.
 
 `customer_registration_requests`: pending sign-ups waiting for admin
 approval (status: pending / approved / rejected + reason). Becomes a real
-customer row once approved.
+customer row once approved. Fields collected: institute, investigator
+(name, email, phone, lab building + room), PI (name, email, phone), and
+NRC license contact (name, phone, email — for shipping orders).
 
 ---
 
