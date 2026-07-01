@@ -1,9 +1,11 @@
 # ---- Project-specific ----
-# The important one: holds the DB password, must never be committed
 src/config.php
-# Runtime logs
 logs/*
 !logs/.gitkeep
+
+# ---- Node ----
+node_modules/
+package-lock.json
 
 # ---- macOS ----
 .DS_Store
