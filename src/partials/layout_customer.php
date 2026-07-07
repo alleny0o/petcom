@@ -26,7 +26,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
   <!-- Sidebar Header -->
   <header class="sidebar-header">
 
-    <div class="auth-card__logo"><?php include 'icon.svg'; ?></div>
+    <div class="sidebar-logo"><img src="/favicons/android-chrome-192x192.png" alt="PETStack"></div>
     <button class="sidebar-toggle">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="15 18 9 12 15 6"></polyline>
@@ -41,7 +41,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
       <ul class="menu-list">
 
         <li class="menu-item">
-          <a href="/customer_home.php" class="menu-link <?= in_array($currentPage, ['customer_home', 'customer_order_detail'], true) ? 'active' : '' ?>">
+          <a href="/customer/dashboard.php" class="menu-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>

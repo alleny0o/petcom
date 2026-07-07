@@ -9,7 +9,7 @@
 
 /* ============================================================
    9. AUTH PAGES (login / register / change-password)
-   A centered, narrow, focused card — separate from the app shell.
+   A centered, focused card — separate from the app shell.
    ============================================================ */
 
 .auth-wrap {
@@ -20,56 +20,92 @@
   justify-content: center;
   padding: var(--sp-6) var(--sp-4);
 }
+
 .auth-card {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-hr);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--color-shadow), 0 8px 24px var(--color-shadow);
+  overflow: hidden;
 }
+
+/* Wider variant for longer forms (registration, with grouped sections) */
+.auth-card--wide {
+  max-width: 540px;
+}
+
 .auth-card__head {
-  border-top: 3px solid var(--accent-500);
   padding: var(--sp-6) var(--sp-6) var(--sp-5);
-  border-bottom: 1px solid var(--color-bg-primary);
+  text-align: center;
 }
+
 .auth-card__brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
 }
+
 .auth-card__logo {
-  width: 45px;
-  height: 45px;
-  background: var(--color-bg-sidebar);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-logo-text);
-  font-weight: 700;
-  font-size: 25px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
   flex-shrink: 0;
 }
+.auth-card__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .auth-card__title {
   color: var(--color-text-primary);
   font-weight: 600;
-  font-size: 17px;
+  font-size: 18px;
   letter-spacing: -0.01em;
-  line-height: 1.1;
+  line-height: 1.2;
 }
+
 .auth-card__subtitle {
   color: var(--color-text-placeholder);
-  font-size: 12px;
-  margin-top: 1px;
+  font-size: 13px;
+  margin-top: 2px;
 }
+
 .auth-card__body {
-  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+  padding: 0 var(--sp-6) var(--sp-6);
 }
+
 .auth-card__foot {
-  margin-top: var(--sp-5);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--color-bg-primary);
+  padding: var(--sp-4) var(--sp-6);
+  background: var(--color-bg-primary);
+  border-top: 1px solid var(--color-border-hr);
   text-align: center;
   font-size: 13px;
   color: var(--color-text-placeholder);
+}
+.auth-card__foot a {
+  font-weight: 500;
+}
+
+/* Form sections inside the auth card: quiet dividers, no bulky
+   top border/padding stacking on top of the card's own padding. */
+.auth-card .form-section {
+  padding-bottom: var(--sp-5);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--color-border-hr);
+}
+.auth-card .form-section:last-of-type {
+  padding-bottom: 0;
+  margin-bottom: var(--sp-5);
+  border-bottom: none;
+}
+.auth-card .form-section__title {
+  font-size: 12px;
 }
 
 
