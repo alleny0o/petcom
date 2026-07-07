@@ -167,12 +167,17 @@ CREATE TABLE staff (
 -- registration_status lives directly here — no separate requests table.
 CREATE TABLE customers (
   user_id              INT UNSIGNED PRIMARY KEY,
+  full_name            VARCHAR(255) NULL,
+  phone                VARCHAR(20) NULL,
   institute_id         INT UNSIGNED NULL,
   lab_id               INT UNSIGNED NULL,
   supervising_pi_id    INT UNSIGNED NULL,
   registration_status  ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   approved_by          INT UNSIGNED NULL,
   approved_at          DATETIME NULL,
+  nrc_contact_name     VARCHAR(255) NULL,
+  nrc_contact_phone    VARCHAR(20) NULL,
+  nrc_contact_email    VARCHAR(255) NULL,
   CONSTRAINT fk_customers_user         FOREIGN KEY (user_id)           REFERENCES users (user_id)         ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_customers_institute    FOREIGN KEY (institute_id)      REFERENCES institutes (institute_id) ON DELETE SET NULL,
   CONSTRAINT fk_customers_lab          FOREIGN KEY (lab_id)            REFERENCES labs (lab_id)             ON DELETE SET NULL,
