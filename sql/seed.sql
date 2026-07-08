@@ -3,13 +3,20 @@
 -- Minimal test data. Load after schema.sql, into an empty
 -- `petcom` database (relies on AUTO_INCREMENT starting at 1).
 --
--- password_hash values below are placeholders, not real bcrypt
--- hashes — run tools/set_temp_passwords.php once to replace them
--- with real temp-password hashes for these seeded accounts.
+-- password_hash values are placeholders — run
+-- tools/set_temp_passwords.php once to replace with real hashes.
 --
--- Institutes here ARE the NIH institutes/centers (this is an
--- NIH Clinical Center PET Department system — all customers are
--- NIH-internal; there is no "outside institution" concept).
+-- Institutes here ARE the NIH institutes/centers (NIH Clinical
+-- Center PET Department system — all customers are NIH-internal).
+--
+-- customers does not store institute_id directly — always
+-- derived via lab_id -> labs.institute_id.
+--
+-- customer name is first_name + last_name (no middle_initial —
+-- removed as unnecessary complexity with no real requirement
+-- behind it).
+--
+-- Usernames follow the real convention: NIH email address.
 -- ============================================================
 
 -- ---- Institutes (6 of the ~27 real NIH institutes/centers) ----
@@ -23,8 +30,8 @@ INSERT INTO institutes (name, shorthand_name, active) VALUES
 
 -- ---- Labs (3) ----
 INSERT INTO labs (institute_id, lab_name, building, room, active) VALUES
-  (2, 'Molecular Imaging Lab', 'Bldg 10', 'B1D43', 1),   -- NCI
-  (3, 'Neuroimaging Lab', 'Bldg 10', '2C401', 1),        -- NIMH
+  (2, 'Molecular Imaging Lab', 'Bldg 10', 'B1D43', 1),      -- NCI
+  (3, 'Neuroimaging Lab', 'Bldg 10', '2C401', 1),           -- NIMH
   (6, 'Cerebrovascular Imaging Lab', 'Bldg 10', 'C107', 1); -- NINDS
 
 -- ---- PIs (2) ----
@@ -79,25 +86,30 @@ INSERT INTO compound_delivery_options (compound_id, delivery_option_id) VALUES
   (3, 1),          -- C-11 Target Run: Will-call
   (4, 1), (4, 3);  -- O-15 Water Production: Will-call, Through pharmacy
 
--- ---- Users (6): 1 admin, 2 staff, 3 customers ----
+-- ---- Users (7): 1 admin, 2 staff, 4 customers ----
+-- Usernames are real NIH-email-style, matching Kris's requirement
+-- that username = NIH email address.
 INSERT INTO users (username, password_hash, must_change_password, active) VALUES
-  ('admin1',       'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 1: admin
-  ('staff.rad',    'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 2: staff, Radiopharmacy
-  ('staff.cyc',    'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 3: staff, Cyclotron
-  ('cust.acarter', 'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 4: customer
-  ('cust.bkim',    'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 5: customer
-  ('cust.dpatel',  'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1); -- 6: customer
+  ('robert.nguyen@nih.gov',  'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 1: admin
+  ('maria.santos@nih.gov',   'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 2: staff, Radiopharmacy
+  ('james.oconnor@nih.gov',  'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 3: staff, Cyclotron
+  ('alice.carter@nih.gov',   'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 4: customer
+  ('brian.kim@nih.gov',      'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 5: customer
+  ('deepa.patel@nih.gov',    'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 6: customer
+  ('evan.feng@nih.gov',      'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1); -- 7: customer (lab-mate of Alice, for lab-wide visibility testing)
 
 -- ---- Admin (1) ----
 INSERT INTO admins (user_id) VALUES (1);
 
 -- ---- Staff (2, one per category) ----
 INSERT INTO staff (user_id, category_id) VALUES
-  (2, 1), -- staff.rad -> Radiopharmacy
-  (3, 2); -- staff.cyc -> Cyclotron
+  (2, 1), -- maria.santos -> Radiopharmacy
+  (3, 2); -- james.oconnor -> Cyclotron
 
--- ---- Customers (3, all approved) ----
-INSERT INTO customers (user_id, institute_id, lab_id, supervising_pi_id, registration_status, approved_by, approved_at) VALUES
-  (4, 2, 1, 1, 'approved', 1, '2026-06-01 09:00:00'), -- cust.acarter: NCI / Molecular Imaging Lab / Dr. Carter
-  (5, 3, 2, 2, 'approved', 1, '2026-06-02 09:00:00'), -- cust.bkim: NIMH / Neuroimaging Lab / Dr. Ellison
-  (6, 6, 3, 2, 'approved', 1, '2026-06-03 09:00:00'); -- cust.dpatel: NINDS / Cerebrovascular Imaging Lab / Dr. Ellison
+-- ---- Customers (4, all approved) ----
+INSERT INTO customers (user_id, first_name, last_name, lab_id, supervising_pi_id, registration_status, approved_by, approved_at) VALUES
+  (4, 'Alice', 'Carter', 1, 1, 'approved', 1, '2026-06-01 09:00:00'), -- NCI / Molecular Imaging Lab / Dr. Carter
+  (5, 'Brian', 'Kim',    2, 2, 'approved', 1, '2026-06-02 09:00:00'), -- NIMH / Neuroimaging Lab / Dr. Ellison
+  (6, 'Deepa', 'Patel',  3, 2, 'approved', 1, '2026-06-03 09:00:00'), -- NINDS / Cerebrovascular Imaging Lab / Dr. Ellison
+  (7, 'Evan',  'Feng',   1, 1, 'approved', 1, '2026-06-04 09:00:00'); -- NCI / Molecular Imaging Lab / Dr. Carter (lab-mate of Alice)
+
