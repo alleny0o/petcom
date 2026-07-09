@@ -1,36 +1,22 @@
 -- ============================================================
 -- PETCOM — schema.sql
--- All 20 tables. InnoDB, utf8mb4. Load into an empty `petcom`
--- database, then load seed.sql.
+-- Identity/role layer only (Phase 1 scope). 9 tables. InnoDB,
+-- utf8mb4. Load into an empty `petcom` database, then load
+-- seed.sql.
 --
 -- Build order is FK-safe, not the narrative order in CLAUDE.md:
---   institutes -> labs -> pis -> lab_pis -> categories -> isotopes
---   -> delivery_options -> compounds -> compound_isotopes
---   -> compound_delivery_options -> users -> admins -> staff
---   -> customers -> orders -> order_type_a_details
---   -> order_type_b_details -> order_public_comments
---   -> order_internal_notes -> order_audit_log
--- (categories has to exist before staff/compounds reference it,
--- which is earlier than CLAUDE.md's identity-then-menu grouping.)
+--   institutes -> labs -> pis -> lab_pis -> categories -> users
+--   -> admins -> staff -> customers
+-- (categories has to exist before staff references it, which is
+-- earlier than CLAUDE.md's identity-then-menu grouping.)
 -- ============================================================
 
 SET NAMES utf8mb4;
 
-DROP TABLE IF EXISTS order_audit_log;
-DROP TABLE IF EXISTS order_internal_notes;
-DROP TABLE IF EXISTS order_public_comments;
-DROP TABLE IF EXISTS order_type_b_details;
-DROP TABLE IF EXISTS order_type_a_details;
-DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS staff;
 DROP TABLE IF EXISTS admins;
 DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS compound_delivery_options;
-DROP TABLE IF EXISTS compound_isotopes;
-DROP TABLE IF EXISTS compounds;
-DROP TABLE IF EXISTS delivery_options;
-DROP TABLE IF EXISTS isotopes;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS lab_pis;
 DROP TABLE IF EXISTS pis;
@@ -41,6 +27,15 @@ DROP TABLE IF EXISTS institutes;
 -- ============================================================
 -- Identity
 -- ============================================================
+
+-- The five tables below (institutes, labs, pis, lab_pis,
+-- categories) are provisional reference/lookup tables. Their
+-- internal shape may be revised once the final order form design
+-- is settled by the other team members working on that piece. The
+-- identity layer (users, admins, staff, customers) is final and
+-- shouldn't need to change as a result, as long as the FK
+-- contract (lab_id -> labs.lab_id, category_id ->
+-- categories.category_id, etc.) stays intact.
 
 CREATE TABLE institutes (
   institute_id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -85,54 +80,6 @@ CREATE TABLE categories (
   category_id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   category_name VARCHAR(50) NOT NULL,
   UNIQUE KEY uq_categories_name (category_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE isotopes (
-  isotope_id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  isotope_name VARCHAR(30) NOT NULL,
-  active       TINYINT(1) NOT NULL DEFAULT 1,
-  UNIQUE KEY uq_isotopes_name (isotope_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE delivery_options (
-  delivery_option_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  name                VARCHAR(50) NOT NULL,
-  UNIQUE KEY uq_delivery_options_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- A compound has exactly one category regardless of which isotope
--- it's ordered with, so category lives here, not on compound_isotopes.
-CREATE TABLE compounds (
-  compound_id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  category_id         INT UNSIGNED NOT NULL,
-  name                VARCHAR(255) NOT NULL,
-  order_type          ENUM('A', 'B') NOT NULL,
-  standard_cost       DECIMAL(10,2) NOT NULL,
-  min_lead_time_hours DECIMAL(6,1) NOT NULL DEFAULT 0,
-  active              TINYINT(1) NOT NULL DEFAULT 1,
-  CONSTRAINT fk_compounds_category FOREIGN KEY (category_id) REFERENCES categories (category_id),
-  KEY idx_compounds_category_id (category_id),
-  KEY idx_compounds_active (active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Usually 1:1, occasionally a compound allows multiple isotopes.
-CREATE TABLE compound_isotopes (
-  compound_id INT UNSIGNED NOT NULL,
-  isotope_id  INT UNSIGNED NOT NULL,
-  PRIMARY KEY (compound_id, isotope_id),
-  CONSTRAINT fk_compound_isotopes_compound FOREIGN KEY (compound_id) REFERENCES compounds (compound_id) ON DELETE CASCADE,
-  CONSTRAINT fk_compound_isotopes_isotope  FOREIGN KEY (isotope_id)  REFERENCES isotopes (isotope_id)   ON DELETE CASCADE,
-  KEY idx_compound_isotopes_isotope_id (isotope_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Each compound lists its own allowed delivery methods, not a global list.
-CREATE TABLE compound_delivery_options (
-  compound_id         INT UNSIGNED NOT NULL,
-  delivery_option_id  INT UNSIGNED NOT NULL,
-  PRIMARY KEY (compound_id, delivery_option_id),
-  CONSTRAINT fk_cdo_compound         FOREIGN KEY (compound_id)        REFERENCES compounds (compound_id)               ON DELETE CASCADE,
-  CONSTRAINT fk_cdo_delivery_option  FOREIGN KEY (delivery_option_id) REFERENCES delivery_options (delivery_option_id) ON DELETE CASCADE,
-  KEY idx_cdo_delivery_option_id (delivery_option_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Shared login table for all three roles. Role is determined by which
@@ -187,108 +134,4 @@ CREATE TABLE customers (
   CONSTRAINT fk_customers_approved_by  FOREIGN KEY (approved_by)       REFERENCES users (user_id)           ON DELETE SET NULL,
   KEY idx_customers_registration_status (registration_status),
   KEY idx_customers_lab_id (lab_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ============================================================
--- Orders
--- ============================================================
-
--- cost_snapshot is set at creation and never recalculated from
--- compounds.standard_cost — historical orders/reports stay accurate
--- even after prices change. No "returned" status: returns go back to
--- pending, and order_audit_log is what records that a return happened.
-CREATE TABLE orders (
-  order_id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  customer_id          INT UNSIGNED NOT NULL,
-  compound_id          INT UNSIGNED NOT NULL,
-  isotope_id           INT UNSIGNED NOT NULL,
-  delivery_option_id   INT UNSIGNED NOT NULL,
-  status               ENUM('pending', 'accepted', 'completed', 'canceled') NOT NULL DEFAULT 'pending',
-  cost_snapshot        DECIMAL(10,2) NOT NULL,
-  created_by           INT UNSIGNED NOT NULL,
-  created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  processed_by         INT UNSIGNED NULL,
-  processed_at         DATETIME NULL,
-  last_modified_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_orders_customer         FOREIGN KEY (customer_id)        REFERENCES customers (user_id),
-  CONSTRAINT fk_orders_compound         FOREIGN KEY (compound_id)        REFERENCES compounds (compound_id),
-  CONSTRAINT fk_orders_isotope          FOREIGN KEY (isotope_id)         REFERENCES isotopes (isotope_id),
-  CONSTRAINT fk_orders_delivery_option  FOREIGN KEY (delivery_option_id) REFERENCES delivery_options (delivery_option_id),
-  CONSTRAINT fk_orders_created_by       FOREIGN KEY (created_by)         REFERENCES users (user_id),
-  CONSTRAINT fk_orders_processed_by     FOREIGN KEY (processed_by)       REFERENCES users (user_id),
-  KEY idx_orders_status (status),
-  KEY idx_orders_customer_id (customer_id),
-  KEY idx_orders_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Dose orders. Independent of order_type_b_details — never model one
--- as parent/child of the other.
-CREATE TABLE order_type_a_details (
-  order_id            INT UNSIGNED PRIMARY KEY,
-  activity_mci        DECIMAL(8,2) NOT NULL,
-  requested_datetime  DATETIME NOT NULL,
-  CONSTRAINT fk_order_type_a_order FOREIGN KEY (order_id) REFERENCES orders (order_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Cyclotron orders: either beam_current+bombardment_minutes OR
--- eob_activity_mci+eob_datetime, never both — enforced by the CHECK
--- below. Delivery destination is orders.delivery_option_id; no
--- separate destination column here.
-CREATE TABLE order_type_b_details (
-  order_id             INT UNSIGNED PRIMARY KEY,
-  mode                 ENUM('beam', 'eob') NOT NULL,
-  beam_current         DECIMAL(6,2) NULL,
-  bombardment_minutes  SMALLINT UNSIGNED NULL,
-  eob_activity_mci     DECIMAL(8,2) NULL,
-  eob_datetime         DATETIME NULL,
-  CONSTRAINT fk_order_type_b_order FOREIGN KEY (order_id) REFERENCES orders (order_id) ON DELETE CASCADE,
-  CONSTRAINT chk_order_type_b_mode CHECK (
-    (mode = 'beam' AND beam_current IS NOT NULL AND bombardment_minutes IS NOT NULL
-       AND eob_activity_mci IS NULL AND eob_datetime IS NULL)
-    OR
-    (mode = 'eob' AND eob_activity_mci IS NOT NULL AND eob_datetime IS NOT NULL
-       AND beam_current IS NULL AND bombardment_minutes IS NULL)
-  )
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Append-only, visible to customer + staff. Posting is restricted to
--- the order's own customer (enforced in app logic, not schema) plus
--- staff/admin — viewing is lab-wide for customers.
-CREATE TABLE order_public_comments (
-  comment_id  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id    INT UNSIGNED NOT NULL,
-  author_id   INT UNSIGNED NOT NULL,
-  body        VARCHAR(1000) NOT NULL,
-  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_opc_order  FOREIGN KEY (order_id)  REFERENCES orders (order_id) ON DELETE CASCADE,
-  CONSTRAINT fk_opc_author FOREIGN KEY (author_id) REFERENCES users (user_id),
-  KEY idx_opc_order_id (order_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Append-only, staff-only (enforced in app logic, not schema).
-CREATE TABLE order_internal_notes (
-  note_id     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id    INT UNSIGNED NOT NULL,
-  author_id   INT UNSIGNED NOT NULL,
-  body        VARCHAR(1000) NOT NULL,
-  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_oin_order  FOREIGN KEY (order_id)  REFERENCES orders (order_id) ON DELETE CASCADE,
-  CONSTRAINT fk_oin_author FOREIGN KEY (author_id) REFERENCES users (user_id),
-  KEY idx_oin_order_id (order_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Status changes only (pending -> accepted -> completed/canceled,
--- timestamp, who) — not field-level diffing. status_from is NULL for
--- the initial pending row written at order creation.
-CREATE TABLE order_audit_log (
-  log_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id     INT UNSIGNED NOT NULL,
-  changed_by   INT UNSIGNED NOT NULL,
-  status_from  ENUM('pending', 'accepted', 'completed', 'canceled') NULL,
-  status_to    ENUM('pending', 'accepted', 'completed', 'canceled') NOT NULL,
-  changed_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_oal_order       FOREIGN KEY (order_id)   REFERENCES orders (order_id) ON DELETE CASCADE,
-  CONSTRAINT fk_oal_changed_by  FOREIGN KEY (changed_by) REFERENCES users (user_id),
-  KEY idx_oal_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
