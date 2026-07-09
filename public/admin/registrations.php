@@ -1,7 +1,7 @@
 <?php
-require __DIR__ . '/../src/helpers.php';
+require __DIR__ . '/../../src/helpers.php';
 bootstrap_session();
-require __DIR__ . '/../src/auth.php';
+require __DIR__ . '/../../src/auth.php';
 require_role('admin');
 
 $pdo = get_db();
@@ -131,11 +131,11 @@ $pageTitle = 'Registrations';
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php include __DIR__ . '/../src/partials/head.php'; ?>
+    <?php include __DIR__ . '/../../src/partials/head.php'; ?>
 </head>
 <body>
     <div class="app-shell">
-        <?php include __DIR__ . '/../src/partials/layout_admin.php'; ?>
+        <?php include __DIR__ . '/../../src/partials/layout_admin.php'; ?>
         <main class="app-main">
             <div class="page-header">
                 <h1>Registrations</h1>

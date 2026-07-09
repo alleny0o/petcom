@@ -1,7 +1,7 @@
 <?php
-require __DIR__ . '/../src/helpers.php';
+require __DIR__ . '/../../src/helpers.php';
 bootstrap_session();
-require __DIR__ . '/../src/auth.php';
+require __DIR__ . '/../../src/auth.php';
 require_role('admin');
 
 $pdo = get_db();
@@ -104,11 +104,11 @@ $pageTitle = 'Customers';
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php include __DIR__ . '/../src/partials/head.php'; ?>
+    <?php include __DIR__ . '/../../src/partials/head.php'; ?>
 </head>
 <body>
     <div class="app-shell">
-        <?php include __DIR__ . '/../src/partials/layout_admin.php'; ?>
+        <?php include __DIR__ . '/../../src/partials/layout_admin.php'; ?>
         <main class="app-main">
             <div class="page-header">
                 <h1>Customers</h1>
@@ -169,7 +169,7 @@ $pageTitle = 'Customers';
                                         <td><?= e($c['lab_name'] ?? '—') ?></td>
                                         <td><?= e($c['pi_name'] ?? '—') ?></td>
                                         <td><span class="badge badge--<?= $c['active'] ? 'active' : 'inactive' ?>"><?= $c['active'] ? 'Active' : 'Inactive' ?></span></td>
-                                        <td><a href="/admin_customer_detail.php?id=<?= (int) $c['user_id'] ?>" class="table-action">View</a></td>
+                                        <td><a href="/admin/customer_detail.php?id=<?= (int) $c['user_id'] ?>" class="table-action">View</a></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
