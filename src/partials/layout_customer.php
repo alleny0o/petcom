@@ -6,7 +6,6 @@ $accountInitials = implode('', array_map(
     array_slice(explode(' ', $accountName), 0, 2)
 ));
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$ordersSectionPages = ['dashboard', 'order_detail'];
 ?>
 <!-- App topbar: always present (see layout.css section 8). The
      hamburger button inside it is the only mobile-specific part. -->
@@ -42,7 +41,7 @@ $ordersSectionPages = ['dashboard', 'order_detail'];
       <ul class="menu-list">
 
         <li class="menu-item">
-          <a href="/customer/dashboard.php" class="menu-link <?= in_array($currentPage, $ordersSectionPages, true) ? 'active' : '' ?>">
+          <a href="/customer/dashboard.php" class="menu-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
@@ -50,17 +49,6 @@ $ordersSectionPages = ['dashboard', 'order_detail'];
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
             <span class="menu-label"><span class="menu-label__text">Dashboard</span></span>
-          </a>
-        </li>
-
-        <li class="menu-item">
-          <a href="/customer/new_order.php" class="menu-link <?= $currentPage === 'new_order' ? 'active' : '' ?>">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12" y2="16"></line>
-              <line x1="8" y1="12" x2="16" y2="12"></line>
-            </svg>
-            <span class="menu-label"><span class="menu-label__text">New Order</span></span>
           </a>
         </li>
 
