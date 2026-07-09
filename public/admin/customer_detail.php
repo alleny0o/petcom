@@ -1,7 +1,7 @@
 <?php
-require __DIR__ . '/../src/helpers.php';
+require __DIR__ . '/../../src/helpers.php';
 bootstrap_session();
-require __DIR__ . '/../src/auth.php';
+require __DIR__ . '/../../src/auth.php';
 require_role('admin');
 
 $pdo = get_db();
@@ -10,7 +10,7 @@ $pdo = get_db();
  * Single-use temp password: doesn't need to satisfy the full strength
  * policy (validate_password_strength()) since it's never kept -- the
  * account is forced to change it on first login. Same helper as
- * admin_registrations.php's approve action; not shared out to
+ * registrations.php's approve action; not shared out to
  * src/helpers.php for two call sites.
  */
 function generate_temp_password(): string
@@ -223,11 +223,11 @@ $pageTitle = $customer !== null ? ($customer['first_name'] . ' ' . $customer['la
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php include __DIR__ . '/../src/partials/head.php'; ?>
+    <?php include __DIR__ . '/../../src/partials/head.php'; ?>
 </head>
 <body>
     <div class="app-shell">
-        <?php include __DIR__ . '/../src/partials/layout_admin.php'; ?>
+        <?php include __DIR__ . '/../../src/partials/layout_admin.php'; ?>
         <main class="app-main">
             <?php if ($customer === null): ?>
                 <?php http_response_code(404); ?>
@@ -236,12 +236,12 @@ $pageTitle = $customer !== null ? ($customer['first_name'] . ' ' . $customer['la
                 </div>
                 <div class="card">
                     <p class="muted">This customer doesn't exist.</p>
-                    <a href="/admin_customers.php" class="btn btn--secondary">Back to Customers</a>
+                    <a href="/admin/customers.php" class="btn btn--secondary">Back to Customers</a>
                 </div>
             <?php else: ?>
                 <div class="page-header">
                     <div>
-                        <a href="/admin_customers.php" class="page-header__back mb-4">&larr; Back to Customers</a>
+                        <a href="/admin/customers.php" class="page-header__back mb-4">&larr; Back to Customers</a>
                         <span class="badge badge--<?= $customer['active'] ? 'active' : 'inactive' ?> page-header__status"><?= $customer['active'] ? 'Active' : 'Inactive' ?></span>
                         <h1><?= e($customer['first_name'] . ' ' . $customer['last_name']) ?></h1>
                     </div>
@@ -284,7 +284,7 @@ $pageTitle = $customer !== null ? ($customer['first_name'] . ' ' . $customer['la
 
                 <div class="card">
                     <span class="card__title">Edit Details</span>
-                    <form method="post" action="/admin_customer_detail.php?id=<?= (int) $userId ?>">
+                    <form method="post" action="/admin/customer_detail.php?id=<?= (int) $userId ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="edit">
 
@@ -373,13 +373,13 @@ $pageTitle = $customer !== null ? ($customer['first_name'] . ' ' . $customer['la
                 <div class="card">
                     <span class="card__title">Account Actions</span>
                     <div class="flex gap-3">
-                        <form method="post" action="/admin_customer_detail.php?id=<?= (int) $userId ?>" onsubmit="return confirm('<?= $customer['active'] ? 'Deactivate this customer? They will be signed out immediately and unable to log in.' : 'Reactivate this customer? They will be able to log in again.' ?>');">
+                        <form method="post" action="/admin/customer_detail.php?id=<?= (int) $userId ?>" onsubmit="return confirm('<?= $customer['active'] ? 'Deactivate this customer? They will be signed out immediately and unable to log in.' : 'Reactivate this customer? They will be able to log in again.' ?>');">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="toggle_active">
                             <button type="submit" class="btn <?= $customer['active'] ? 'btn--danger' : 'btn--secondary' ?>"><?= $customer['active'] ? 'Deactivate Customer' : 'Reactivate Customer' ?></button>
                         </form>
 
-                        <form method="post" action="/admin_customer_detail.php?id=<?= (int) $userId ?>" onsubmit="return confirm('Generate a new temporary password for this customer? Their current password will stop working immediately.');">
+                        <form method="post" action="/admin/customer_detail.php?id=<?= (int) $userId ?>" onsubmit="return confirm('Generate a new temporary password for this customer? Their current password will stop working immediately.');">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="reset_password">
                             <button type="submit" class="btn btn--secondary">Reset Password</button>

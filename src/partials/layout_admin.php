@@ -53,7 +53,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         </li>
 
         <li class="menu-item">
-          <a href="/admin_registrations.php" class="menu-link <?= $currentPage === 'admin_registrations' ? 'active' : '' ?>">
+          <a href="/admin/registrations.php" class="menu-link <?= $currentPage === 'registrations' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
               <circle cx="8.5" cy="7" r="4"></circle>
@@ -65,7 +65,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         </li>
 
         <li class="menu-item">
-          <a href="/admin_customers.php" class="menu-link <?= in_array($currentPage, ['admin_customers', 'admin_customer_detail'], true) ? 'active' : '' ?>">
+          <a href="/admin/customers.php" class="menu-link <?= in_array($currentPage, ['customers', 'customer_detail'], true) ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
