@@ -6,16 +6,17 @@
 --
 -- Build order is FK-safe, not the narrative order in CLAUDE.md:
 --   institutes -> labs -> pis -> lab_pis -> categories -> users
---   -> admins -> staff -> customers
+--   -> staff -> admins -> customers
 -- (categories has to exist before staff references it, which is
--- earlier than CLAUDE.md's identity-then-menu grouping.)
+-- earlier than CLAUDE.md's identity-then-menu grouping. staff has
+-- to exist before admins, since every admin is also staff.)
 -- ============================================================
 
 SET NAMES utf8mb4;
 
 DROP TABLE IF EXISTS customers;
-DROP TABLE IF EXISTS staff;
 DROP TABLE IF EXISTS admins;
+DROP TABLE IF EXISTS staff;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS lab_pis;
@@ -96,11 +97,6 @@ CREATE TABLE users (
   UNIQUE KEY uq_users_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE admins (
-  user_id INT UNSIGNED PRIMARY KEY,
-  CONSTRAINT fk_admins_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- One category per staff member, not a junction table.
 CREATE TABLE staff (
   user_id     INT UNSIGNED PRIMARY KEY,
@@ -108,6 +104,15 @@ CREATE TABLE staff (
   CONSTRAINT fk_staff_user     FOREIGN KEY (user_id)     REFERENCES users (user_id)         ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_staff_category FOREIGN KEY (category_id) REFERENCES categories (category_id),
   KEY idx_staff_category_id (category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Every admin is also staff (admin subset-of staff) — enforced here via FK
+-- to staff, not straight to users, so an admin row can't exist without a
+-- matching staff row. category_id on that staff row stays NOT NULL (no
+-- sentinel); the app layer bypasses category restrictions for admins.
+CREATE TABLE admins (
+  user_id INT UNSIGNED PRIMARY KEY,
+  CONSTRAINT fk_admins_user FOREIGN KEY (user_id) REFERENCES staff (user_id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Institute is NOT stored here — always derived via

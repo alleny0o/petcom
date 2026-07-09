@@ -46,10 +46,14 @@ INSERT INTO lab_pis (lab_id, pi_id) VALUES
   (2, 2), -- Neuroimaging Lab <- Dr. Ellison (lab with two PIs)
   (3, 2); -- Cerebrovascular Imaging Lab <- Dr. Ellison
 
--- ---- Categories (2) ----
+-- ---- Categories (3) ----
+-- Administration exists solely so the seeded admin's staff row can carry a
+-- real (if cosmetic) category_id, per the NOT NULL constraint on
+-- staff.category_id. The app bypasses category restrictions for admins.
 INSERT INTO categories (category_name) VALUES
   ('Radiopharmacy'),
-  ('Cyclotron');
+  ('Cyclotron'),
+  ('Administration');
 
 -- ---- Users (7): 1 admin, 2 staff, 4 customers ----
 -- Usernames are real NIH-email-style, matching Kris's requirement
@@ -63,13 +67,17 @@ INSERT INTO users (username, password_hash, must_change_password, active) VALUES
   ('deepa.patel@nih.gov',    'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1), -- 6: customer
   ('evan.feng@nih.gov',      'PLACEHOLDER_HASH_SET_BY_TOOLS_SET_TEMP_PASSWORDS', 1, 1); -- 7: customer (lab-mate of Alice, for lab-wide visibility testing)
 
--- ---- Admin (1) ----
-INSERT INTO admins (user_id) VALUES (1);
-
--- ---- Staff (2, one per category) ----
+-- ---- Staff (3) ----
+-- Must be inserted before admins: admins.user_id now FKs to staff.user_id
+-- (every admin is also staff), so the admin's staff row has to exist first.
 INSERT INTO staff (user_id, category_id) VALUES
+  (1, 3), -- robert.nguyen -> Administration (admin; category is cosmetic)
   (2, 1), -- maria.santos -> Radiopharmacy
   (3, 2); -- james.oconnor -> Cyclotron
+
+-- ---- Admin (1) ----
+-- References the staff row above.
+INSERT INTO admins (user_id) VALUES (1);
 
 -- ---- Customers (4, all approved) ----
 INSERT INTO customers (user_id, first_name, last_name, lab_id, supervising_pi_id, registration_status, approved_by, approved_at) VALUES
