@@ -1,4 +1,5 @@
 <?php
+<<<<<<< HEAD
 require __DIR__ . '/../../src/helpers.php';
 bootstrap_session();
 require __DIR__ . '/../../src/auth.php';
@@ -8,6 +9,12 @@ $pdo = get_db();
 
 // Assuming your auth system stores the logged-in customer's ID here:
 $customerId = 4; 
+=======
+session_start();
+require __DIR__ . '/../src/demo_orders.php';
+
+$allOrders = demo_orders();
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
 
 // ---------------------------------------------------------
 // 1. Capture Filter Inputs
@@ -20,6 +27,7 @@ $filterDateEnd   = $_GET['date_end'] ?? '';
 $page            = max(1, intval($_GET['page'] ?? 1));
 $itemsPerPage    = 10;
 
+<<<<<<< HEAD
 $hasAdvancedFilters = ($filterStatus !== '' || $filterIsotope !== '' || $filterDateStart !== '' || $filterDateEnd !== '');
 
 // Get active isotopes for the dropdown directly from your new table
@@ -99,6 +107,56 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 
 $paginatedOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+=======
+// Determine if the advanced drawer should be open on load
+$hasAdvancedFilters = ($filterStatus !== '' || $filterIsotope !== '' || $filterDateStart !== '' || $filterDateEnd !== '');
+
+$uniqueIsotopes = array_unique(array_column($allOrders, 'isotope'));
+sort($uniqueIsotopes);
+
+// ---------------------------------------------------------
+// 2. Apply Filters
+// ---------------------------------------------------------
+$filteredOrders = array_filter($allOrders, function($o) use ($filterSearch, $filterStatus, $filterIsotope, $filterDateStart, $filterDateEnd) {
+    // 1. Search (ID or Compound)
+    $matchesSearch = $filterSearch === '' || 
+                     stripos($o['id'], $filterSearch) !== false || 
+                     stripos($o['compound'], $filterSearch) !== false;
+    
+    // 2. Status & Isotope
+    $matchesStatus = $filterStatus === '' || $o['status'] === $filterStatus;
+    $matchesIsotope = $filterIsotope === '' || strcasecmp($o['isotope'], $filterIsotope) === 0;
+
+    // 3. Date Range Logic
+    $matchesDate = true;
+    // Fallback through your available date keys to find the timestamp
+    $orderDateRaw = $o['placed_at'] ?? $o['requested'] ?? $o['b_datetime'] ?? null;
+    
+    if ($orderDateRaw) {
+        // Extract just the YYYY-MM-DD part for a clean comparison
+        $dateOnly = substr($orderDateRaw, 0, 10);
+        
+        if ($filterDateStart !== '' && $dateOnly < $filterDateStart) {
+            $matchesDate = false;
+        }
+        if ($filterDateEnd !== '' && $dateOnly > $filterDateEnd) {
+            $matchesDate = false;
+        }
+    }
+
+    return $matchesSearch && $matchesStatus && $matchesIsotope && $matchesDate;
+});
+
+// ---------------------------------------------------------
+// 3. Pagination Logic
+// ---------------------------------------------------------
+$totalItems = count($filteredOrders);
+$totalPages = $totalItems > 0 ? ceil($totalItems / $itemsPerPage) : 1;
+$page = min($page, $totalPages); 
+
+$offset = ($page - 1) * $itemsPerPage;
+$paginatedOrders = array_slice($filteredOrders, $offset, $itemsPerPage);
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
 
 function buildUrl($pageUpdate) {
     $params = $_GET;
@@ -107,17 +165,30 @@ function buildUrl($pageUpdate) {
 }
 ?>
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
+<<<<<<< HEAD
     <?php include __DIR__ . '/../../src/partials/head.php'; ?>
+=======
+    <?php $pageTitle = 'Past Orders'; $roleCss = 'customer';
+    include '../src/partials/head.php'; ?>
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
 </head>
 
 <body>
 
     <div class="app-shell">
+<<<<<<< HEAD
         <?php include __DIR__ . '/../../src/partials/layout_customer.php'; ?>
+=======
+        <?php include '../src/partials/layout_customer.php'; ?>
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
 
         <main class="app-main">
 
@@ -132,7 +203,11 @@ function buildUrl($pageUpdate) {
                 <div class="table-card-header" style="flex-direction: column; align-items: stretch; gap: 10px;">
                     <span class="table-card-title mb-0">All Orders (<?= $totalItems ?>)</span>
                     
+<<<<<<< HEAD
                     <form method="GET" action="past_orders.php" id="filter-form">
+=======
+                    <form method="GET" action="customer_past_orders.php" id="filter-form">
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
                         <input type="hidden" name="page" value="1"> 
                         
                         <div class="search-bar-top">
@@ -145,7 +220,11 @@ function buildUrl($pageUpdate) {
                             </button>
                             
                             <?php if ($filterSearch !== '' || $hasAdvancedFilters): ?>
+<<<<<<< HEAD
                                 <a href="past_orders.php" class="btn btn--secondary">Clear</a>
+=======
+                                <a href="customer_past_orders.php" class="btn btn--secondary">Clear</a>
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
                             <?php endif; ?>
                         </div>
 
@@ -207,12 +286,21 @@ function buildUrl($pageUpdate) {
                             <?php else: ?>
                                 <?php foreach ($paginatedOrders as $o): ?>
                                     <tr>
+<<<<<<< HEAD
                                         <td class="muted tabular"><?= htmlspecialchars($o['order_id']) ?></td>
                                         <td><?= htmlspecialchars($o['compound_name'] ?? 'Unknown') ?></td>
                                         <td class="muted"><?= htmlspecialchars($o['isotope'] ?? 'Unknown') ?></td>
                                         <td class="muted tabular"><?= htmlspecialchars(date('M d, Y h:i A', strtotime($o['delivery_time']))) ?></td>
                                         <td><span class="badge badge--<?= htmlspecialchars($o['status']) ?>"><?= ucfirst(htmlspecialchars($o['status'])) ?></span></td>
                                         <td><a href="order_detail.php?id=<?= $o['order_id'] ?>" class="table-action">View →</a></td>
+=======
+                                        <td class="muted tabular"><?= htmlspecialchars($o['id']) ?></td>
+                                        <td><?= htmlspecialchars($o['compound']) ?></td>
+                                        <td class="muted"><?= htmlspecialchars($o['isotope']) ?></td>
+                                        <td class="muted tabular"><?= htmlspecialchars($o['requested'] ?? $o['b_datetime'] ?? '—') ?></td>
+                                        <td><span class="badge badge--<?= $o['status'] ?>"><?= ucfirst($o['status']) ?></span></td>
+                                        <td><a href="order_detail.php?id=<?= $o['id'] ?>" class="table-action">View →</a></td>
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -247,7 +335,11 @@ function buildUrl($pageUpdate) {
 
 </body>
 
+<<<<<<< HEAD
 <script src="/assets/js/script.js" defer></script>
+=======
+<script src="assets/js/script.js" defer></script>
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
 <script>
     // Toggle the advanced filter drawer open/closed
     document.getElementById('toggle-advanced-search').addEventListener('click', function() {

@@ -39,4 +39,7 @@
 <link rel="stylesheet" href="/assets/css/components/radio-cards.css">
 <link rel="stylesheet" href="/assets/css/components/order-page.css">
 <link rel="stylesheet" href="/assets/css/components/catalog.css">
+<<<<<<< HEAD
 <link rel="stylesheet" href="/assets/css/components/past-orders.css">
+=======
+>>>>>>> f1a9c500e83897e6bbb28035eec951eae49bc042
