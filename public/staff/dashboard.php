@@ -8,12 +8,13 @@ $pdo = get_db();
 
 $stmt = $pdo->prepare(
     'SELECT cat.category_name
-     FROM staff s
-     JOIN categories cat ON cat.category_id = s.category_id
-     WHERE s.user_id = ?'
+     FROM staff_categories sc
+     JOIN categories cat ON cat.category_id = sc.category_id
+     WHERE sc.user_id = ?
+     ORDER BY cat.category_name'
 );
 $stmt->execute([(int) $_SESSION['user_id']]);
-$categoryName = (string) $stmt->fetchColumn();
+$categoryNames = implode(', ', array_column($stmt->fetchAll(), 'category_name'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -37,9 +38,9 @@ $categoryName = (string) $stmt->fetchColumn();
 
             <div class="stat-grid">
                 <div class="stat-tile">
-                    <span class="stat-tile__label">Your Category</span>
-                    <span class="stat-tile__value stat-tile__value--text"><?= e($categoryName) ?></span>
-                    <span class="stat-tile__meta">You process orders in this category only</span>
+                    <span class="stat-tile__label">Your Categories</span>
+                    <span class="stat-tile__value stat-tile__value--text"><?= e($categoryNames) ?></span>
+                    <span class="stat-tile__meta">You process orders in these categories</span>
                 </div>
                 <div class="stat-tile">
                     <span class="stat-tile__label">Orders To Process</span>
@@ -60,7 +61,7 @@ $categoryName = (string) $stmt->fetchColumn();
                         </svg>
                     </div>
                     <div class="empty-state__title">No orders to process yet</div>
-                    <p class="empty-state__hint">Customer ordering isn't open yet. Orders for the <?= e($categoryName) ?> category will land here.</p>
+                    <p class="empty-state__hint">Customer ordering isn't open yet. Orders for these categories will land here: <?= e($categoryNames) ?>.</p>
                 </div>
             </div>
         </main>

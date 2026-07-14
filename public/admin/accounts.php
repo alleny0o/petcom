@@ -22,7 +22,7 @@ if ($q !== '') {
     // as customers.php -- matches either the staff member's name or
     // their username (email).
     $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
-    $where[] = "(CONCAT(s.first_name, ' ', s.last_name) LIKE ? ESCAPE '\\\\' OR u.username LIKE ? ESCAPE '\\\\')";
+    $where[] = "(CONCAT(u.first_name, ' ', u.last_name) LIKE ? ESCAPE '\\\\' OR u.username LIKE ? ESCAPE '\\\\')";
     $params[] = '%' . $escaped . '%';
     $params[] = '%' . $escaped . '%';
 }
@@ -32,7 +32,7 @@ if ($role === 'staff') {
     $where[] = 'a.user_id IS NOT NULL';
 }
 if ($categoryId !== '' && ctype_digit((string) $categoryId)) {
-    $where[] = 'cat.category_id = ?';
+    $where[] = 'EXISTS (SELECT 1 FROM staff_categories sc_filter WHERE sc_filter.user_id = s.user_id AND sc_filter.category_id = ?)';
     $params[] = (int) $categoryId;
 }
 if ($status === 'active') {
@@ -47,7 +47,6 @@ $countStmt = $pdo->prepare(
     "SELECT COUNT(*)
      FROM staff s
      JOIN users u ON u.user_id = s.user_id
-     JOIN categories cat ON cat.category_id = s.category_id
      LEFT JOIN admins a ON a.user_id = s.user_id
      $whereSql"
 );
@@ -63,12 +62,10 @@ $offset = ($page - 1) * ACCOUNTS_PAGE_SIZE;
 // same convention as customers.php.
 $listStmt = $pdo->prepare(
     "SELECT u.user_id, u.username, u.active,
-            s.first_name, s.last_name,
-            cat.category_id, cat.category_name,
+            u.first_name, u.last_name,
             (a.user_id IS NOT NULL) AS is_admin
      FROM staff s
      JOIN users u ON u.user_id = s.user_id
-     JOIN categories cat ON cat.category_id = s.category_id
      LEFT JOIN admins a ON a.user_id = s.user_id
      $whereSql
      ORDER BY u.username
@@ -76,6 +73,27 @@ $listStmt = $pdo->prepare(
 );
 $listStmt->execute($params);
 $accounts = $listStmt->fetchAll();
+
+// Batch-fetched separately (rather than joined into the query above) so a
+// staff member with multiple categories doesn't multiply their row in the
+// paginated list -- one extra query for exactly the rows on this page,
+// grouped in PHP into a comma-separated display string per user.
+$categoryNamesByUser = [];
+if ($accounts) {
+    $userIds = array_column($accounts, 'user_id');
+    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+    $catStmt = $pdo->prepare(
+        "SELECT sc.user_id, cat.category_name
+         FROM staff_categories sc
+         JOIN categories cat ON cat.category_id = sc.category_id
+         WHERE sc.user_id IN ($placeholders)
+         ORDER BY cat.category_name"
+    );
+    $catStmt->execute($userIds);
+    foreach ($catStmt->fetchAll() as $row) {
+        $categoryNamesByUser[$row['user_id']][] = $row['category_name'];
+    }
+}
 
 // Filter dropdown includes every category (including the cosmetic
 // Administration one) -- this is a search context, and filtering the
@@ -187,7 +205,7 @@ $pageTitle = 'Accounts';
                                         <td><?= e($acc['first_name'] . ' ' . $acc['last_name']) ?></td>
                                         <td><?= e($acc['username']) ?></td>
                                         <td><span class="badge badge--role-<?= $acc['is_admin'] ? 'admin' : 'staff' ?>"><?= $acc['is_admin'] ? 'Admin' : 'Staff' ?></span></td>
-                                        <td><?= e($acc['category_name']) ?></td>
+                                        <td><?= e(implode(', ', $categoryNamesByUser[$acc['user_id']] ?? [])) ?></td>
                                         <td><span class="badge badge--<?= $acc['active'] ? 'active' : 'inactive' ?>"><?= $acc['active'] ? 'Active' : 'Inactive' ?></span></td>
                                         <td><a href="/admin/account_detail.php?id=<?= (int) $acc['user_id'] ?>" class="table-action">View</a></td>
                                     </tr>

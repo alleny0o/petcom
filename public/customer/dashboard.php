@@ -8,7 +8,7 @@ $pdo = get_db();
 $myUserId = (int) $_SESSION['user_id'];
 
 $stmt = $pdo->prepare(
-    'SELECT c.first_name, c.last_name, c.phone, c.registration_status,
+    'SELECT u.first_name, u.last_name, u.phone, c.registration_status,
             i.name AS institute_name, l.lab_name, p.pi_name,
             u.username, u.created_at
      FROM customers c

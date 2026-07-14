@@ -41,6 +41,7 @@ petcom/
       accounts.php         (D.2: unified staff+admin list)
       account_detail.php   (D.2: view/edit category/deactivate/reset password)
       account_create.php   (D.2: create a staff or admin account)
+      catalog.php           (catalog config: isotopes/compounds/SKUs, filter bar, add product)
     assets/
       css/
         style.css        (tokens + base/reset + typography + accessibility)
@@ -91,82 +92,35 @@ petcom/
 
 No `docs/` folder yet — `DEPLOY.md` is expected to show up as part of the deployment-polish phase; nothing currently reads a `SCHEMA.md`, and it isn't committed anywhere yet either.
 
-## Three Security Rules
-
-1. **Only `public/` is servable.** DB credentials live in `src/`.
-2. **Every protected page gates itself near the top:**
-   ```php
-   require __DIR__ . '/../src/helpers.php';
-   bootstrap_session();
-   require __DIR__ . '/../src/auth.php';
-   require_role('customer'); // or 'staff', 'admin'
-   ```
-   `bootstrap_session()` (in `helpers.php`) sets hardened cookie flags before
-   starting the session — pages must not call a bare `session_start()`. Public
-   pages (login.php, register.php) don't call `require_role()`.
-3. **Always use `__DIR__` in require/include paths** — relative paths break when deployed to RHEL.
-
-## Page Template Pattern
-
-```php
-<?php
-require __DIR__ . '/../src/helpers.php';
-bootstrap_session();
-require __DIR__ . '/../src/auth.php';
-require_role('customer');
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <?php $pageTitle = 'Page Name'; include __DIR__ . '/../src/partials/head.php'; ?>
-</head>
-<body>
-    <div class="app-shell">
-        <?php include __DIR__ . '/../src/partials/layout_customer.php'; ?>
-        <main class="app-main">
-            <!-- content here -->
-        </main>
-    </div>
-</body>
-<script src="/assets/js/script.js" defer></script>
-</html>
-```
-
 ## Database
 
-Tables are grouped by area below; the group composition is stable even as tables
-within it get built out. Tables marked **(built)** exist in `sql/schema.sql` today
-— see that file for exact columns/constraints and build order (FK-safe order,
-not the narrative order here). Unmarked tables are designed but not yet built.
+See `sql/schema.sql` for exact columns/constraints — this is just a map of what
+exists and where things stand, not a full spec.
 
-**Identity (11 tables, all built):**
-1. `institutes` (built)
-2. `labs` (built)
-3. `pis` (built)
-4. `lab_pis` (built) — join: a lab can have multiple PIs, a PI can oversee multiple labs
-5. `users` (built) — shared login table: username, password_hash, must_change_password, failed_login_count, locked_until — used by all three roles
-6. `password_history` (built) — prior password hashes, for reuse prevention in `change_password.php`
-7. `lockout_events` (built) — records a lockout event each time a login attempt trips the failed-attempt threshold
-8. `customers` (built) — extends `users` via `user_id`; institute/lab/supervising_pi locked at approval. `registration_status` is set to `'approved'` when the row is created by the C.2 approval flow — a `customers` row only ever exists once a request is approved, so this is effectively a constant, kept because `customer/dashboard.php` displays it. The old `approved_by`/`approved_at` columns were dropped in C.2 as genuinely unused (see `customer_registration_requests.reviewed_by_admin_id`/`reviewed_at` for that bookkeeping now)
-9. `customer_registration_requests` (built) — holds a public self-registration submission until an admin reviews it (see Business Rules)
-10. `staff` (built) — extends `users` via `user_id`; has a single `category_id` — one category per staff member, not a junction table
-11. `admins` (built) — extends `users` via `user_id`
+**Identity — built:** `institutes`, `labs`, `pis`, `lab_pis`, `users`,
+`password_history`, `lockout_events`, `customers`, `customer_registration_requests`,
+`staff`, `admins`. `staff` does not hold a category directly — category
+assignment is many-to-many via `staff_categories`, not a single `category_id`
+(corrected from an earlier one-category-per-staff design before it shipped).
 
-**Menu (6 tables, 1 built):**
-12. `isotopes`
-13. `categories` (built) — e.g. Radiopharmacy, Cyclotron — admin-editable, referenced by both `staff.category_id` and the future `compounds.category_id`
-14. `compounds`
-15. `compound_isotopes` (join: usually 1:1, occasionally a compound allows multiple isotopes)
-16. `delivery_options`
-17. `compound_delivery_options` (join: each compound lists its own allowed delivery methods)
+**Catalog — built on `main`, running on Xiaofan's schema (`origin/catalog`):**
+`categories`, `staff_categories` (join), `isotopes`, `compounds`, and
+products/SKUs (compound × isotope variant, independently statused). Not yet
+built: `delivery_options`, `compound_delivery_options`. Exact column/table
+names haven't been re-verified against this file — confirm against
+`sql/schema.sql` before writing migrations. Still open: sync with Xiaofan/Kris
+to confirm the seeded isotope/compound list is the long-term list.
 
-**Orders (6 tables, none built yet):**
-18. `orders`
-19. `order_type_a_details` (dose orders: activity_mci, requested_datetime)
-20. `order_type_b_details` (cyclotron orders: either beam_current+bombardment_minutes OR eob_activity_mci+eob_datetime, never both)
-21. `order_public_comments` (append-only, visible to customer + staff)
-22. `order_internal_notes` (append-only, staff-only)
-23. `order_audit_log` (status changes only — pending→accepted→completed/canceled, timestamp, who — not field-level diffing)
+**Orders — designed and validated in a prior build, not yet on `main`, to be
+rebuilt against the current catalog schema:** `orders`, `order_public_comments`
+(append-only), `order_internal_notes` (append-only, staff-only),
+`order_audit_log` (status-only, not field-level diffing). One unified order
+form for every order type — no Type A/B split, no separate detail tables.
+Cyclotron-run specifics (beam current, bombardment time, EOB activity,
+destination) go in the free-text special instructions field like any other
+order note. Also to be rebuilt: an institute-scoped catalog access join table
+(enforced at DB level, not just UI), and lab-scoped (not per-customer)
+delivery locations/product users with soft-delete via an `active` flag.
 
 ## Business Rules (Non-Negotiable)
 
@@ -174,27 +128,29 @@ These came from the requirements interview. Don't simplify them.
 
 - **No phone-in orders.** Customers place their own orders only. No `is_phone_in` field, no attestation.
 - **Self-registration lands in `customer_registration_requests`, not `customers`.** A public registration submission (Phase C.1) creates a row in that separate table (`status`: pending/approved/rejected) — no `users` or `customers` row exists until an admin approves the request (Phase C.2), at which point the account and temp password get created. `customers.registration_status`/`approved_by`/`approved_at` predate this design and are unused by the current registration flow.
-- **Type A and Type B are independent.** Never model one as parent/child.
-- **Completed orders are terminal.** No edits, no cancels after `status = completed`.
-- **Returned orders go back to `pending`.** No separate "returned" status — the audit log preserves that a return happened.
+- **There is one order form for all order types.** Cyclotron target requests use the same form as any other order; their run-specific details (beam current, bombardment time, EOB activity, destination) go in the special instructions text field rather than dedicated structured columns or a separate detail table. Do not build or maintain a second order-detail table.
+- **Completed orders are terminal.** No edits, no cancels after `status = completed`. This is enforced as a hard guard in the status-transition function itself, not just hidden in the UI.
+- **Returned orders go back to `pending`.** No separate "returned" status — the audit log preserves that a return happened. A return can re-open a completed or cancelled order.
 - **Cost is snapshotted.** `orders.cost_snapshot` is set at creation time. If a compound's standard cost changes later, historical orders/reports are unaffected.
 - **Isotope first, then compound.** Customer picks isotope, then sees only compatible compounds — not the reverse.
 - **Delivery options are per-compound.** Each compound lists its own allowed delivery methods, not a global list.
-- **Audit log is status-only.** Not field-level diffing — just status_from, status_to, timestamp, who.
+- **Audit log is status-only.** Not field-level diffing — just status_from, status_to, timestamp, who. Every transition, including order creation, writes an audit log entry automatically and atomically alongside the status change.
 - **Comments are append-only threads.** Public (customer + staff) and internal (staff-only) are separate tables, never a single overwritable field.
+- **Staff process orders by category, many-to-many.** A staff member can be assigned to more than one processing category via the `staff_categories` join table — not a single `category_id` on `staff`.
+- **No per-order/per-period quantity limits.** Staff can adjust freely during processing.
 - **No email from the app, ever.** Admins relay approvals/resets via NIH's internal email manually. No SMTP, no mail-sending code.
 - **Session timeout: 15 minutes idle.** Lockout: 5 failed login attempts → 15-minute lockout.
 - **Order IDs are sequential, never reused**, even for canceled orders.
-- **No per-order/per-period quantity limits.**
 - **Deactivating a customer never hides historical orders.** Pending orders at deactivation are left alone for staff to handle manually — never auto-canceled.
 - **Admin can trigger password resets but never views or sets the actual password.** Reset generates a one-time temp password that forces a change + strength check on next login.
+- **Order search must cover** ID, compound, isotope, date, and customer/lab/PI/institute.
 
 ## Roles
 
 | Role | Access |
 |------|--------|
 | `customer` | Place orders, view own lab's orders, add public comments, cancel own pending orders |
-| `staff` | Process orders in their assigned category only, accept/modify/complete/cancel/return, add public comments + internal notes |
+| `staff` | Process orders in any of their assigned categories (many-to-many), accept/modify/complete/cancel/return, add public comments + internal notes |
 | `admin` | Everything staff can do, plus manage compounds/categories/isotopes/delivery options/customers/staff/institutes, run reports, approve registrations |
 
 Role is determined by which table a `user_id` appears in (`customers`, `staff`, `admins`) — `users` itself has no role column.
@@ -215,6 +171,7 @@ Role is determined by which table a `user_id` appears in (`customers`, `staff`, 
 - Temp-password reveals → `.temp-password-banner` with a `data-copy-target` Copy button; never a toast
 - Status language: pill badges with a leading dot (`.badge--active/pending/approved/rejected/…`); role chips are square (`.badge--role-admin/staff`)
 - Submit buttons get a spinner + double-submit guard automatically from script.js — no per-form wiring needed
+- Military time (24-hour HH:MM) for any order date/time field is enforced as a pattern-validated text input, never a native time picker — this guarantees no AM/PM UI ever appears, including on mobile. This is a real department requirement, not a style choice.
 
 **Dark mode:** Not implemented right now. Tokens may exist in CSS for future use but no toggle is wired up.
 
@@ -236,9 +193,19 @@ Branch → PR → merge. Never push directly to `main`.
 PETCOM is built in lettered phases (A–F); the detailed phase/sub-phase plan is
 tracked outside this file, not here — this section is intentionally just a
 high-level status marker so it doesn't need editing every time a sub-phase
-ships. Current status: **A, B, and C are complete. D is in progress (D.1
-customer management and D.2 staff/admin account management are done; D.3
-institute/lab/PI CRUD has not started). E and F have not started.**
+ships.
+
+Current status: **A, B, and C are complete. D.1 (customer management) and D.2
+(staff/admin account management) are done; D.3 (institute/lab/PI CRUD) has not
+started.** Catalog management (admin-facing, `/admin/catalog.php`) is live on
+`main`, running on the current catalog schema. The order-lifecycle system
+(unified order form, staff order processing, audit logging — corresponding to
+what this file calls Phase E/F work) was designed and built once already
+against a prior catalog schema and is being rebuilt against the current one;
+it is not yet present on `main`. Next up, in order: (1) confirm catalog
+schema/seed data with Xiaofan/Kris and finish any remaining schema/seed
+changes, (2) customer dashboard incl. the unified order form, (3) staff
+dashboard incl. order processing queue and audit logging.
 
 ## Verification Policy
 

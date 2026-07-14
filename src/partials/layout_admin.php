@@ -1,5 +1,5 @@
 <?php
-$accountStmt = get_db()->prepare('SELECT first_name, last_name FROM staff WHERE user_id = ?');
+$accountStmt = get_db()->prepare('SELECT first_name, last_name, phone FROM users WHERE user_id = ?');
 $accountStmt->execute([(int) $_SESSION['user_id']]);
 $accountRow = $accountStmt->fetch();
 $accountName = $accountRow['first_name'] . ' ' . $accountRow['last_name'];
@@ -15,7 +15,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 if (($_GET['profile_updated'] ?? null) === '1') {
     echo toast_flash('success', 'Profile updated.');
 } elseif (($_GET['profile_error'] ?? null) === '1') {
-    echo toast_flash('error', 'First and last name are required.');
+    echo toast_flash('error', 'Please check your profile details and try again.');
 }
 
 // The three account-workflow pages now live under one expandable
@@ -155,6 +155,10 @@ $accountsSectionActive = in_array($currentPage, $accountsChildPages, true);
             <label for="profile-last-name">Last name <span class="required-mark">*</span></label>
             <input type="text" id="profile-last-name" name="last_name" value="<?= htmlspecialchars($accountRow['last_name']) ?>" required>
           </div>
+        </div>
+        <div class="field">
+          <label for="profile-phone">Phone</label>
+          <input type="text" id="profile-phone" name="phone" value="<?= htmlspecialchars($accountRow['phone'] ?? '') ?>">
         </div>
         <p class="field-hint mb-0">Need to update your password? <a href="/change_password.php">Change Password</a></p>
       </div>

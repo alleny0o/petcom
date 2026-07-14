@@ -1,5 +1,8 @@
 <?php
-session_start();
+require __DIR__ . '/../../src/helpers.php';
+bootstrap_session();
+require __DIR__ . '/../../src/auth.php';
+require_role('customer');
 require __DIR__ . '/../src/demo_orders.php';
 
 $allOrders = demo_orders();

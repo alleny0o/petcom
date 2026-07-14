@@ -22,7 +22,7 @@ function fetch_customer(PDO $pdo, int $userId): ?array
 {
     $stmt = $pdo->prepare(
         'SELECT u.user_id, u.username, u.active, u.created_at,
-                c.first_name, c.last_name, c.phone, c.lab_id, c.supervising_pi_id,
+                u.first_name, u.last_name, u.phone, c.lab_id, c.supervising_pi_id,
                 c.registration_status, c.nrc_contact_name, c.nrc_contact_phone, c.nrc_contact_email,
                 l.institute_id, l.lab_name, i.name AS institute_name, p.pi_name
          FROM customers c
@@ -129,15 +129,15 @@ if ($customer !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$fieldErrors) {
+            $pdo->beginTransaction();
+            $pdo->prepare('UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE user_id = ?')
+                ->execute([$editOld['first_name'], $editOld['last_name'], $editOld['phone'], $userId]);
             $pdo->prepare(
                 'UPDATE customers
-                 SET first_name = ?, last_name = ?, phone = ?, lab_id = ?, supervising_pi_id = ?,
+                 SET lab_id = ?, supervising_pi_id = ?,
                      nrc_contact_name = ?, nrc_contact_phone = ?, nrc_contact_email = ?
                  WHERE user_id = ?'
             )->execute([
-                $editOld['first_name'],
-                $editOld['last_name'],
-                $editOld['phone'],
                 (int) $editOld['lab_id'],
                 (int) $editOld['supervising_pi_id'],
                 $editOld['nrc_contact_name'] !== '' ? $editOld['nrc_contact_name'] : null,
@@ -145,6 +145,7 @@ if ($customer !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $editOld['nrc_contact_email'] !== '' ? $editOld['nrc_contact_email'] : null,
                 $userId,
             ]);
+            $pdo->commit();
 
             $customer = fetch_customer($pdo, $userId);
             $editOld = reset_edit_old($customer);

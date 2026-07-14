@@ -20,9 +20,10 @@ function generate_temp_password(): string
 
 /**
  * The Administration category exists solely as a cosmetic placeholder
- * for staff.category_id on admin accounts (NOT NULL constraint, but
- * admins bypass category restrictions in the app) -- an Admin account's
- * category is always this, looked up by name rather than a hardcoded id.
+ * for admin accounts' staff_categories row -- the app requires every
+ * staff member to have at least one category and always assigns this one
+ * for admins (nothing in the DB enforces either), looked up by name
+ * rather than a hardcoded id.
  */
 function administration_category_id(PDO $pdo): int
 {
@@ -33,11 +34,11 @@ $fieldErrors = [];
 $successReveal = null;
 
 $old = [
-    'email'       => '',
-    'first_name'  => '',
-    'last_name'   => '',
-    'role'        => 'staff',
-    'category_id' => '',
+    'email'        => '',
+    'first_name'   => '',
+    'last_name'    => '',
+    'role'         => 'staff',
+    'category_ids' => [],
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -47,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['first_name'] = trim($_POST['first_name'] ?? '');
     $old['last_name'] = trim($_POST['last_name'] ?? '');
     $old['role'] = ($_POST['role'] ?? '') === 'admin' ? 'admin' : 'staff';
-    $old['category_id'] = trim((string) ($_POST['category_id'] ?? ''));
+    $old['category_ids'] = array_unique(array_map('strval', (array) ($_POST['category_id'] ?? [])));
 
     if ($old['email'] === '' || !filter_var($old['email'], FILTER_VALIDATE_EMAIL)) {
         $fieldErrors['email'] = 'A valid email is required.';
@@ -62,21 +63,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fieldErrors['last_name'] = 'Last name is required.';
     }
 
-    $categoryId = null;
+    $categoryIds = [];
     if ($old['role'] === 'admin') {
-        $categoryId = administration_category_id($pdo);
+        $categoryIds = [administration_category_id($pdo)];
     } else {
-        if ($old['category_id'] === '' || !ctype_digit($old['category_id'])) {
-            $fieldErrors['category_id'] = 'Select a category.';
-        } elseif ((int) $old['category_id'] === administration_category_id($pdo)) {
+        $submittedIds = $old['category_ids'];
+        if (!$submittedIds) {
+            $fieldErrors['category_id'] = 'Select at least one category.';
+        } elseif (array_filter($submittedIds, static fn($id) => !ctype_digit($id))) {
+            $fieldErrors['category_id'] = 'Select a valid category.';
+        } elseif (in_array((string) administration_category_id($pdo), $submittedIds, true)) {
             $fieldErrors['category_id'] = 'Administration is reserved for admin accounts.';
         } else {
-            $stmt = $pdo->prepare('SELECT 1 FROM categories WHERE category_id = ?');
-            $stmt->execute([$old['category_id']]);
-            if (!$stmt->fetchColumn()) {
+            $placeholders = implode(',', array_fill(0, count($submittedIds), '?'));
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM categories WHERE category_id IN ($placeholders)");
+            $stmt->execute($submittedIds);
+            if ((int) $stmt->fetchColumn() !== count($submittedIds)) {
                 $fieldErrors['category_id'] = 'Select a valid category.';
             } else {
-                $categoryId = (int) $old['category_id'];
+                $categoryIds = array_map('intval', $submittedIds);
             }
         }
     }
@@ -99,12 +104,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tempHash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
             $pdo->prepare(
-                'INSERT INTO users (username, password_hash, must_change_password, active) VALUES (?, ?, 1, 1)'
-            )->execute([$old['email'], $tempHash]);
+                'INSERT INTO users (username, password_hash, first_name, last_name, must_change_password, active) VALUES (?, ?, ?, ?, 1, 1)'
+            )->execute([$old['email'], $tempHash, $old['first_name'], $old['last_name']]);
             $newUserId = (int) $pdo->lastInsertId();
 
-            $pdo->prepare('INSERT INTO staff (user_id, first_name, last_name, category_id) VALUES (?, ?, ?, ?)')
-                ->execute([$newUserId, $old['first_name'], $old['last_name'], $categoryId]);
+            $pdo->prepare('INSERT INTO staff (user_id) VALUES (?)')
+                ->execute([$newUserId]);
+
+            $catInsertStmt = $pdo->prepare('INSERT INTO staff_categories (user_id, category_id) VALUES (?, ?)');
+            foreach ($categoryIds as $catId) {
+                $catInsertStmt->execute([$newUserId, $catId]);
+            }
 
             if ($old['role'] === 'admin') {
                 $pdo->prepare('INSERT INTO admins (user_id) VALUES (?)')->execute([$newUserId]);
@@ -126,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'tempPassword' => $tempPassword,
             ];
 
-            $old = ['email' => '', 'first_name' => '', 'last_name' => '', 'role' => 'staff', 'category_id' => ''];
+            $old = ['email' => '', 'first_name' => '', 'last_name' => '', 'role' => 'staff', 'category_ids' => []];
         } catch (PDOException $e) {
             $pdo->rollBack();
             $fieldErrors['email'] = 'Could not create the account. An account for this email may already exist.';
@@ -213,13 +223,13 @@ $pageTitle = 'New Account';
                     </div>
 
                     <div class="<?= field_class($fieldErrors, 'category_id', 'field mb-0') ?>" id="category_field">
-                        <label for="category_id">Category <span class="required-mark">*</span></label>
-                        <select id="category_id" name="category_id">
-                            <option value="">Select category&hellip;</option>
-                            <?php foreach ($categories as $category): ?>
-                                <option value="<?= (int) $category['category_id'] ?>" <?= (string) $category['category_id'] === $old['category_id'] ? 'selected' : '' ?>><?= e($category['category_name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <span class="form-section__title">Categories <span class="required-mark">*</span></span>
+                        <?php foreach ($categories as $category): ?>
+                            <label>
+                                <input type="checkbox" class="category-checkbox" name="category_id[]" value="<?= (int) $category['category_id'] ?>" <?= in_array((string) $category['category_id'], $old['category_ids'], true) ? 'checked' : '' ?>>
+                                <?= e($category['category_name']) ?>
+                            </label>
+                        <?php endforeach; ?>
                         <?= field_error($fieldErrors, 'category_id') ?>
                     </div>
 
@@ -237,14 +247,15 @@ $pageTitle = 'New Account';
   var staffRadio = document.getElementById('role_staff');
   var adminRadio = document.getElementById('role_admin');
   var categoryField = document.getElementById('category_field');
-  var categorySelect = document.getElementById('category_id');
-  if (!staffRadio || !adminRadio || !categoryField || !categorySelect) return;
+  var categoryCheckboxes = categoryField ? categoryField.querySelectorAll('.category-checkbox') : [];
+  if (!staffRadio || !adminRadio || !categoryField || !categoryCheckboxes.length) return;
 
   function updateCategoryField() {
     var isAdmin = adminRadio.checked;
     categoryField.hidden = isAdmin;
-    categorySelect.required = !isAdmin;
-    categorySelect.disabled = isAdmin;
+    categoryCheckboxes.forEach(function (checkbox) {
+      checkbox.disabled = isAdmin;
+    });
   }
 
   staffRadio.addEventListener('change', updateCategoryField);

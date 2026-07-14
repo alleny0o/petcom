@@ -20,9 +20,11 @@ function generate_temp_password(): string
 
 /**
  * The Administration category exists solely as a cosmetic placeholder
- * for staff.category_id on admin accounts (NOT NULL constraint, but
- * admins bypass category restrictions in the app) -- it's never a real
- * work category, so it's excluded from the staff category edit dropdown.
+ * for admin accounts' staff_categories row -- the app requires every
+ * staff member to have at least one category and always assigns this one
+ * for admins (nothing in the DB enforces either), and admins bypass
+ * category restrictions elsewhere in the app. It's never a real work
+ * category, so it's excluded from the staff category edit checkboxes.
  */
 function administration_category_id(PDO $pdo): int
 {
@@ -33,18 +35,30 @@ function fetch_account(PDO $pdo, int $userId): ?array
 {
     $stmt = $pdo->prepare(
         'SELECT u.user_id, u.username, u.active, u.created_at,
-                s.first_name, s.last_name,
-                cat.category_id, cat.category_name,
+                u.first_name, u.last_name,
                 (a.user_id IS NOT NULL) AS is_admin
          FROM staff s
          JOIN users u ON u.user_id = s.user_id
-         JOIN categories cat ON cat.category_id = s.category_id
          LEFT JOIN admins a ON a.user_id = s.user_id
          WHERE s.user_id = ?'
     );
     $stmt->execute([$userId]);
     $row = $stmt->fetch();
-    return $row !== false ? $row : null;
+    if ($row === false) {
+        return null;
+    }
+
+    $catStmt = $pdo->prepare(
+        'SELECT cat.category_id, cat.category_name
+         FROM staff_categories sc
+         JOIN categories cat ON cat.category_id = sc.category_id
+         WHERE sc.user_id = ?
+         ORDER BY cat.category_name'
+    );
+    $catStmt->execute([$userId]);
+    $row['categories'] = $catStmt->fetchAll();
+
+    return $row;
 }
 
 $userId = isset($_GET['id']) && ctype_digit((string) $_GET['id']) ? (int) $_GET['id'] : 0;
@@ -77,32 +91,40 @@ if ($account !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$profileErrors) {
-            $pdo->prepare('UPDATE staff SET first_name = ?, last_name = ? WHERE user_id = ?')
+            $pdo->prepare('UPDATE users SET first_name = ?, last_name = ? WHERE user_id = ?')
                 ->execute([$profileOld['first_name'], $profileOld['last_name'], $userId]);
             $account = fetch_account($pdo, $userId);
             $profileOld = ['first_name' => $account['first_name'], 'last_name' => $account['last_name']];
             $flash = ['type' => 'success', 'message' => 'Profile updated.'];
         }
     } elseif ($action === 'edit_category' && !$account['is_admin']) {
-        $newCategoryId = trim((string) ($_POST['category_id'] ?? ''));
+        $submittedIds = array_unique(array_map('strval', (array) ($_POST['category_id'] ?? [])));
 
-        if ($newCategoryId === '' || !ctype_digit($newCategoryId)) {
-            $categoryError = 'Select a category.';
-        } elseif ((int) $newCategoryId === administration_category_id($pdo)) {
+        if (!$submittedIds) {
+            $categoryError = 'Select at least one category.';
+        } elseif (array_filter($submittedIds, static fn($id) => !ctype_digit($id))) {
+            $categoryError = 'Select a valid category.';
+        } elseif (in_array((string) administration_category_id($pdo), $submittedIds, true)) {
             $categoryError = 'Administration is reserved for admin accounts.';
         } else {
-            $stmt = $pdo->prepare('SELECT 1 FROM categories WHERE category_id = ?');
-            $stmt->execute([$newCategoryId]);
-            if (!$stmt->fetchColumn()) {
+            $placeholders = implode(',', array_fill(0, count($submittedIds), '?'));
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM categories WHERE category_id IN ($placeholders)");
+            $stmt->execute($submittedIds);
+            if ((int) $stmt->fetchColumn() !== count($submittedIds)) {
                 $categoryError = 'Select a valid category.';
             }
         }
 
         if ($categoryError === '') {
-            $pdo->prepare('UPDATE staff SET category_id = ? WHERE user_id = ?')
-                ->execute([(int) $newCategoryId, $userId]);
+            $pdo->beginTransaction();
+            $pdo->prepare('DELETE FROM staff_categories WHERE user_id = ?')->execute([$userId]);
+            $insertStmt = $pdo->prepare('INSERT INTO staff_categories (user_id, category_id) VALUES (?, ?)');
+            foreach ($submittedIds as $catId) {
+                $insertStmt->execute([$userId, (int) $catId]);
+            }
+            $pdo->commit();
             $account = fetch_account($pdo, $userId);
-            $flash = ['type' => 'success', 'message' => 'Category updated.'];
+            $flash = ['type' => 'success', 'message' => 'Categories updated.'];
         }
     } elseif ($action === 'toggle_active') {
         if ($isSelf && $account['active']) {
@@ -268,8 +290,8 @@ $pageTitle = $account !== null ? ($account['first_name'] . ' ' . $account['last_
                             <span class="detail-list__value"><?= $account['is_admin'] ? 'Admin' : 'Staff' ?></span>
                         </div>
                         <div class="detail-list__row">
-                            <span class="detail-list__label">Category</span>
-                            <span class="detail-list__value"><?= e($account['category_name']) ?></span>
+                            <span class="detail-list__label">Categories</span>
+                            <span class="detail-list__value"><?= e(implode(', ', array_column($account['categories'], 'category_name'))) ?></span>
                         </div>
                         <div class="detail-list__row">
                             <span class="detail-list__label">Created</span>
@@ -283,19 +305,21 @@ $pageTitle = $account !== null ? ($account['first_name'] . ' ' . $account['last_
                 </div>
 
                 <?php if (!$account['is_admin']): ?>
+                    <?php $assignedCategoryIds = array_column($account['categories'], 'category_id'); ?>
                     <div class="card">
-                        <span class="card__title">Category</span>
+                        <span class="card__title">Categories</span>
                         <form method="post" action="/admin/account_detail.php?id=<?= (int) $userId ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="edit_category">
 
                             <div class="field mb-0<?= $categoryError !== '' ? ' field--invalid' : '' ?>">
-                                <label for="category_id">Category <span class="required-mark">*</span></label>
-                                <select id="category_id" name="category_id">
-                                    <?php foreach ($categories as $category): ?>
-                                        <option value="<?= (int) $category['category_id'] ?>" <?= (int) $category['category_id'] === (int) $account['category_id'] ? 'selected' : '' ?>><?= e($category['category_name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <span class="form-section__title">Categories <span class="required-mark">*</span></span>
+                                <?php foreach ($categories as $category): ?>
+                                    <label>
+                                        <input type="checkbox" name="category_id[]" value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $assignedCategoryIds, true) ? 'checked' : '' ?>>
+                                        <?= e($category['category_name']) ?>
+                                    </label>
+                                <?php endforeach; ?>
                                 <?php if ($categoryError !== ''): ?>
                                     <span class="field-error"><?= e($categoryError) ?></span>
                                 <?php endif; ?>

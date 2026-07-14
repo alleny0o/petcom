@@ -44,20 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tempHash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
                 $pdo->prepare(
-                    'INSERT INTO users (username, password_hash, must_change_password, active) VALUES (?, ?, 1, 1)'
-                )->execute([$request['email'], $tempHash]);
+                    'INSERT INTO users (username, password_hash, first_name, last_name, phone, must_change_password, active) VALUES (?, ?, ?, ?, ?, 1, 1)'
+                )->execute([$request['email'], $tempHash, $request['first_name'], $request['last_name'], $request['phone']]);
                 $newUserId = (int) $pdo->lastInsertId();
 
                 $pdo->prepare(
                     'INSERT INTO customers
-                        (user_id, first_name, last_name, phone, lab_id, supervising_pi_id, registration_status,
+                        (user_id, lab_id, supervising_pi_id, registration_status,
                          nrc_contact_name, nrc_contact_phone, nrc_contact_email)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                     VALUES (?, ?, ?, ?, ?, ?, ?)'
                 )->execute([
                     $newUserId,
-                    $request['first_name'],
-                    $request['last_name'],
-                    $request['phone'],
                     $request['lab_id'],
                     $request['pi_id'],
                     'approved',

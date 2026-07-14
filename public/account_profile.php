@@ -27,17 +27,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $firstName = trim($_POST['first_name'] ?? '');
     $lastName = trim($_POST['last_name'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
 
     if ($firstName === '' || $lastName === '') {
         redirect($target . $sep . 'profile_error=1');
     }
+    if ($phone !== '' && (!preg_match('/^[0-9()+.\-\s]+$/', $phone) || !preg_match('/[0-9]/', $phone))) {
+        redirect($target . $sep . 'profile_error=1');
+    }
 
-    // Customers and staff/admins live in separate tables (see CLAUDE.md
-    // Roles) -- $_SESSION['role'] is session-derived, never request input,
-    // so this is a closed two-way choice, not an injection surface.
-    $table = $_SESSION['role'] === 'customer' ? 'customers' : 'staff';
-    get_db()->prepare("UPDATE {$table} SET first_name = ?, last_name = ? WHERE user_id = ?")
-        ->execute([$firstName, $lastName, (int) $_SESSION['user_id']]);
+    get_db()->prepare('UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE user_id = ?')
+        ->execute([$firstName, $lastName, $phone !== '' ? $phone : null, (int) $_SESSION['user_id']]);
 
     redirect($target . $sep . 'profile_updated=1');
 }
