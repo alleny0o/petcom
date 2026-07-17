@@ -6,6 +6,14 @@ require_role('admin');
 
 $pdo = get_db();
 
+// Define allowed tabs and find the current one
+$allowed_tabs = ['products', 'nuclides', 'institutes', 'labs', 'pis'];
+$current_tab = $_GET['tab'] ?? 'products';
+
+if (!in_array($current_tab, $allowed_tabs)) {
+    $current_tab = 'products';
+}
+
 const CATALOG_PAGE_SIZE = 10;
 
 // 1. Fetch active nuclides for the dropdown filter
@@ -101,6 +109,14 @@ $pageTitle = 'Manage Catalog';
                 <h1>Manage Catalog</h1>
                 <a href="/admin/product_add.php" class="btn btn--primary">Add Product</a>
             </div>
+
+            <nav class="page-tabs">
+                <a href="?tab=products" class="tab-link <?= $current_tab === 'products' ? 'active' : '' ?>">Products</a>
+                <a href="?tab=nuclides" class="tab-link <?= $current_tab === 'nuclides' ? 'active' : '' ?>">Nuclides</a>
+                <a href="?tab=institutes" class="tab-link <?= $current_tab === 'institutes' ? 'active' : '' ?>">Institutes</a>
+                <a href="?tab=labs" class="tab-link <?= $current_tab === 'labs' ? 'active' : '' ?>">Labs</a>
+                <a href="?tab=pis" class="tab-link <?= $current_tab === 'pis' ? 'active' : '' ?>">PIs</a>
+            </nav>
 
             <div class="table-card">
                 <div class="table-card-header">
