@@ -1,11 +1,4 @@
 <?php
-// Report all PHP errors
-error_reporting(E_ALL);
-
-// Force errors to be displayed on the screen
-ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
-
 require __DIR__ . '/../../../src/helpers.php';
 bootstrap_session();
 require __DIR__ . '/../../../src/auth.php';
@@ -75,7 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 // 4. Smart Pre-filling Logic
-$val_name = $_POST['nuclide_name'] ?? $nuclide['nuclide_name'];
+$val_name = $_POST['pi_name'] ?? $pi['pi_name'];
+$val_email = $_POST['email'] ?? $pi['email'];
+$val_phone = $_POST['phone'] ?? $pi['phone'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $val_is_active = isset($_POST['is_active']) ? 1 : 0;
@@ -122,19 +117,19 @@ $pageTitle = 'Edit PI Information';
                     <div class="form-group">
                         <label for="pi_name">Full Name *</label>
                         <input type="text" id="pi_name" name="pi_name" class="form-control" 
-                               value="<?= isset($_POST['pi_name']) ? e($_POST['pi_name']) : '' ?>" required>
+                            value="<?= e($val_name) ?>" required>
                     </div>
 
                     <div class="form-group">
                         <label for="email">Email Address</label>
                         <input type="email" id="email" name="email" class="form-control" 
-                               value="<?= isset($_POST['email']) ? e($_POST['email']) : '' ?>">
+                            value="<?= e($val_email) ?>" required>
                     </div>
 
                     <div class="form-group">
                         <label for="phone">Phone Number</label>
                         <input type="tel" id="phone" name="phone" class="form-control" 
-                               value="<?= isset($_POST['phone']) ? e($_POST['phone']) : '' ?>">
+                            value="<?= e($val_phone) ?>" required>
                     </div>
 
                     <div class="form-group form-check">

@@ -30,7 +30,7 @@ $pageTitle = 'Manage Databases';
                 <h1>Manage Databases</h1>
                 <!-- Dynamically changes the button based on the active tab! -->
                 <a href="/admin/catalog/add_<?= e($current_tab) ?>.php" class="btn btn--primary">
-                    Add <?= ucfirst(rtrim($current_tab, 's')) ?>
+                    Add <?= $current_tab === 'pis' ? 'Principal Investigator' : ucfirst(rtrim($current_tab, 's')) ?>
                 </a>
             </div>
 
