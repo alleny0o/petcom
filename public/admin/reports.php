@@ -127,28 +127,6 @@ $products =$stmtProd->fetchAll(PDO::FETCH_ASSOC);
         </main>
     </div>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const startDateInput = document.getElementById('start_date');
-            const endDateInput = document.getElementById('end_date');
-            const resetBtn = document.getElementById('reset-dates');
-
-            function setDefaultDates() {
-                let today = new Date();
-                let lastMonth = new Date();
-                lastMonth.setDate(today.getDate() - 30);
-                endDateInput.valueAsDate = today;
-                startDateInput.valueAsDate = lastMonth;
-            }
-
-            setDefaultDates();
-
-            resetBtn.addEventListener('click', function() {
-                setDefaultDates();
-                // Reset all dropdowns back to 'all'
-                document.querySelectorAll('select').forEach(select => select.value = 'all');
-            });
-        });
-    </script>
+    <script src="/../assets/js/reports.js" defer></script>
 </body>
 </html>
