@@ -276,7 +276,7 @@ CREATE TABLE orders (
   additional_notes      VARCHAR(500) NULL,
   cancelation_notes     VARCHAR(500) NULL,
   CONSTRAINT fk_orders_compound FOREIGN KEY ('compound_id') REFERENCES compounds('compound_id'),
-  CONSTRAINT fk_orders_created_by FOREIGN KEY ('created_by') REFERENCES users('user_id'),
+  CONSTRAINT fk_orders_created_by FOREIGN KEY ('created_by') REFERENCES customers('user_id'),
   CONSTRAINT fk_orders_processed_by FOREIGN KEY ('processed_by') REFERENCES staff('user_id'),
   CONSTRAINT fk_orers_last_modified_by FOREIGN KEY ('last_modified_by') REFERENCES users('user_id'),
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
