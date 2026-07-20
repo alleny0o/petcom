@@ -42,7 +42,7 @@ $listStmt = $pdo->prepare(
     "SELECT institute_id, name, shorthand_name, is_active 
      FROM institutes 
      $whereSql 
-     ORDER BY is_active DESC, name ASC 
+     ORDER BY name ASC 
      LIMIT $offset, " . INSTITUTE_PAGE_SIZE
 );
 $listStmt->execute($params);
