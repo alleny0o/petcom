@@ -1,22 +1,40 @@
 -- ============================================================
 -- PETCOM — schema.sql
 -- Identity/role layer (Phase 1) plus the Phase C.1 self-registration
--- request table. 12 tables. InnoDB, utf8mb4. Load into an empty
--- `petcom` database, then load seed.sql.
+-- request table, plus the restructured catalog layer (nuclides/products),
+-- plus the order-lifecycle layer (orders and audit log, and their
+-- lab-scoped supporting tables).
+-- 17 tables. InnoDB, utf8mb4. Load into an empty `petcom` database, then
+-- load seed.sql.
 --
 -- Build order is FK-safe, not the narrative order in CLAUDE.md:
---   institutes -> labs -> pis -> lab_pis -> categories -> users
---   -> password_history -> lockout_events -> staff -> admins
---   -> customers -> customer_registration_requests
--- (categories has to exist before staff references it, which is
--- earlier than CLAUDE.md's identity-then-menu grouping. staff has
--- to exist before admins, since every admin is also staff.
--- customer_registration_requests comes last since it FKs into labs,
--- pis, and users but nothing FKs into it.)
+--   institutes -> labs -> pis -> lab_pis -> users
+--   -> password_history -> lockout_events -> staff
+--   -> admins -> customers -> customer_registration_requests -> nuclides
+--   -> products -> lab_delivery_locations -> lab_product_users
+--   -> orders -> order_audit_log
+-- (staff has to exist before admins, since every admin is also staff.
+-- customer_registration_requests comes last among the identity tables
+-- since it FKs into labs, pis, and users but nothing FKs into it. The
+-- two catalog tables are created next: nuclides first, then the flat
+-- products table, since products FKs into nuclides. The final two
+-- order-lifecycle tables are created last of all: orders depends on
+-- lab_delivery_locations and lab_product_users (both new here) plus
+-- customers/products (already built), and order_audit_log depends on
+-- orders itself. That dependency also means this whole batch is
+-- dropped FIRST, ahead of even the catalog block, since orders holds
+-- live FKs into products and dropping products first would violate
+-- that constraint.)
 -- ============================================================
 
 SET NAMES utf8mb4;
 
+DROP TABLE IF EXISTS order_audit_log;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS lab_product_users;
+DROP TABLE IF EXISTS lab_delivery_locations;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS nuclides;
 DROP TABLE IF EXISTS customer_registration_requests;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS admins;
@@ -24,34 +42,29 @@ DROP TABLE IF EXISTS staff;
 DROP TABLE IF EXISTS lockout_events;
 DROP TABLE IF EXISTS password_history;
 DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS lab_pis;
 DROP TABLE IF EXISTS pis;
 DROP TABLE IF EXISTS labs;
 DROP TABLE IF EXISTS institutes;
-DROP TABLE IF EXISTS orders;
-DROP TABLE IF EXISTS compounds;
-DROP TABLE IF EXISTS isotopes;
 
 
 -- ============================================================
 -- Identity
 -- ============================================================
 
--- The five tables below (institutes, labs, pis, lab_pis,
--- categories) are provisional reference/lookup tables. Their
--- internal shape may be revised once the final order form design
--- is settled by the other team members working on that piece. The
--- identity layer (users, admins, staff, customers) is final and
--- shouldn't need to change as a result, as long as the FK
--- contract (lab_id -> labs.lab_id, category_id ->
--- categories.category_id, etc.) stays intact.
+-- The four tables below (institutes, labs, pis, lab_pis) are
+-- provisional reference/lookup tables. Their internal shape may be
+-- revised once the final order form design is settled by the other
+-- team members working on that piece. The identity layer (users,
+-- admins, staff, customers) is final and shouldn't need to change
+-- as a result, as long as the FK contract (lab_id -> labs.lab_id,
+-- pi_id -> pis.pi_id, etc.) stays intact.
 
 CREATE TABLE institutes (
   institute_id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name           VARCHAR(255) NOT NULL,
   shorthand_name VARCHAR(10),
-  is_active      TINYINT(1) NOT NULL DEFAULT 1,
+  active         TINYINT(1) NOT NULL DEFAULT 1,
   UNIQUE KEY uq_institutes_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -59,8 +72,10 @@ CREATE TABLE labs (
   lab_id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   institute_id  INT UNSIGNED NOT NULL,
   lab_name      VARCHAR(100) NOT NULL,
-  is_active     TINYINT(1) NOT NULL DEFAULT 1,
-  CONSTRAINT fk_labs_institute FOREIGN KEY (institute_id) REFERENCES institutes (institute_id) ON UPDATE CASCADE ON DELETE SET NULL,
+  building      VARCHAR(50),
+  room          VARCHAR(20),
+  active        TINYINT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT fk_labs_institute FOREIGN KEY (institute_id) REFERENCES institutes (institute_id),
   KEY idx_labs_institute_id (institute_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -69,7 +84,7 @@ CREATE TABLE pis (
   pi_name  VARCHAR(100) NOT NULL,
   email    VARCHAR(254),
   phone    VARCHAR(20),
-  is_active   TINYINT(1) NOT NULL DEFAULT 1
+  active   TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Join table: a lab can have multiple PIs, a PI can oversee multiple labs.
@@ -84,16 +99,22 @@ CREATE TABLE lab_pis (
 
 -- Shared login table for all three roles. Role is determined by which
 -- of admins/staff/customers a user_id appears in — no role column here.
+-- first_name/last_name/phone live here, not duplicated per-role table --
+-- every role needs a name, and a phone number is just as plausible for
+-- staff/admins as for customers. username is already the NIH email
+-- address (see seed.sql's own convention note) — no separate email
+-- column is added here; it would just duplicate username.
 CREATE TABLE users (
-  user_id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   username              VARCHAR(50) NOT NULL,
   password_hash         VARCHAR(255) NOT NULL,
   first_name            VARCHAR(100) NOT NULL,
-  last_name             VARCHAR(100) NOT NULL
+  last_name             VARCHAR(100) NOT NULL,
+  phone                 VARCHAR(20) NULL,
   must_change_password  TINYINT(1) NOT NULL DEFAULT 1,
   failed_login_count    TINYINT UNSIGNED NOT NULL DEFAULT 0,
   locked_until          DATETIME NULL,
-  is_active                TINYINT(1) NOT NULL DEFAULT 1,
+  active                TINYINT(1) NOT NULL DEFAULT 1,
   created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -125,16 +146,21 @@ CREATE TABLE lockout_events (
   KEY idx_lockout_events_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- One category per staff member, not a junction table.
+-- No category assignment: any staff member can process any order
+-- regardless of type (the whole category concept was removed from the
+-- system). first_name/last_name/phone live on users now, not duplicated
+-- here -- every staff row is also a users row (fk_staff_user below), so
+-- name/phone are always reachable through that FK.
 CREATE TABLE staff (
-  user_id           INT UNSIGNED PRIMARY KEY,
-  CONSTRAINT fk_staff_user     FOREIGN KEY (user_id)     REFERENCES users (user_id)         ON DELETE CASCADE ON UPDATE CASCADE,
+  user_id     INT UNSIGNED PRIMARY KEY,
+  CONSTRAINT fk_staff_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Every admin is also staff (admin subset-of staff) — enforced here via FK
 -- to staff, not straight to users, so an admin row can't exist without a
--- matching staff row. category_id on that staff row stays NOT NULL (no
--- sentinel); the app layer bypasses category restrictions for admins.
+-- matching staff row. Name/phone reach here the same two-hop way as
+-- everything else about a person: admins.user_id -> staff.user_id ->
+-- users.user_id.
 CREATE TABLE admins (
   user_id INT UNSIGNED PRIMARY KEY,
   CONSTRAINT fk_admins_user FOREIGN KEY (user_id) REFERENCES staff (user_id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -145,6 +171,9 @@ CREATE TABLE admins (
 -- institute and storing it twice risks the two facts disagreeing.
 -- Lab/supervising PI are locked at approval time.
 -- registration_status lives directly here — no separate requests table.
+-- first_name/last_name/phone live on users now, not duplicated here --
+-- every customer row is also a users row (fk_customers_user below), so
+-- name/phone are always reachable through that FK.
 CREATE TABLE customers (
   user_id              INT UNSIGNED PRIMARY KEY,
   lab_id               INT UNSIGNED NULL,
@@ -167,11 +196,11 @@ CREATE TABLE customers (
 -- rejected request is allowed to be resubmitted — so duplicate
 -- prevention is enforced at the app layer (see register.php).
 CREATE TABLE customer_registration_requests (
-  request_id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  lab_id                  INT UNSIGNED NOT NULL,
-  pi_id                   INT UNSIGNED NOT NULL,
-  first_name              VARCHAR(100) NOT NULL,
-  last_name               VARCHAR(100) NOT NULL,
+  request_id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lab_id                 INT UNSIGNED NOT NULL,
+  pi_id                  INT UNSIGNED NOT NULL,
+  first_name             VARCHAR(100) NOT NULL,
+  last_name              VARCHAR(100) NOT NULL,
   email                   VARCHAR(254) NOT NULL,
   phone                   VARCHAR(20) NOT NULL,
   status                  ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
@@ -188,17 +217,60 @@ CREATE TABLE customer_registration_requests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+-- ============================================================
+-- Catalog
+-- ============================================================
+
+CREATE TABLE nuclides (
+  nuclide_id  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name        VARCHAR(50) NOT NULL,
+  active      TINYINT(1) NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_nuclides_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Flat catalog table — replaces the prior multi-table variant/SKU
+-- catalog model entirely. Each row is one orderable product: a
+-- nuclide + name + a single fixed delivery_method. Delivery
+-- method is never chosen per-order — it's a property of the product row.
+-- A product offered via more than one method (e.g. a product available
+-- both picked up and radiopharmacy-delivered) is represented as two
+-- separate rows sharing the same name+nuclide, not one row with a list
+-- of methods; uq_products_name_nuclide_delivery blocks an exact
+-- duplicate of one of those rows while still allowing that second
+-- variant. No cost/pricing column and no sku/description columns — this
+-- project does not track cost, and nothing else needs a free-text
+-- description or a separate SKU string beyond the product name itself.
+-- delivery_method should be treated as immutable once any order
+-- references this product row: change delivery method by creating a new
+-- product row (and deactivating the old one) rather than editing
+-- delivery_method in place, so historical orders don't silently get
+-- rewritten out from under their own audit trail.
+CREATE TABLE products (
+  product_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  nuclide_id       INT UNSIGNED NOT NULL,
+  name             VARCHAR(150) NOT NULL,
+  delivery_method  ENUM('radiopharmacy', 'pick_up', 'direct_delivery') NOT NULL,
+  active           TINYINT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT fk_products_nuclide  FOREIGN KEY (nuclide_id)  REFERENCES nuclides (nuclide_id),
+  UNIQUE KEY uq_products_name_nuclide_delivery (name, nuclide_id, delivery_method),
+  KEY idx_products_nuclide_id (nuclide_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- ============================================================
+-- Orders
+-- ============================================================
 
 -- Lab-scoped, not per-customer -- multiple customers in the same lab
 -- share the same delivery locations. Soft-delete via active so a
 -- historical order's location_id reference survives even after the
 -- location is later deactivated.
 CREATE TABLE lab_delivery_locations (
-  location_id    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  lab_id         INT UNSIGNED NOT NULL,
-  location_name  VARCHAR(100) NOT NULL,
-  room           VARCHAR(20),
-  is_active         TINYINT(1) NOT NULL DEFAULT 1,
+  location_id  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lab_id       INT UNSIGNED NOT NULL,
+  name         VARCHAR(100) NOT NULL,
+  room         VARCHAR(20),
+  active       TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_lab_delivery_locations_lab FOREIGN KEY (lab_id) REFERENCES labs (lab_id),
   KEY idx_lab_delivery_locations_lab_id (lab_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -208,30 +280,25 @@ CREATE TABLE lab_delivery_locations (
 -- Doe, a lab member who isn't a registered system user and has no row in
 -- customers). Lab-scoped for the same reason as lab_delivery_locations
 -- above. Soft-delete via active so a historical order's product_user_id
--- reference survives deactivation.
+-- reference survives deactivation. first_name/last_name (not a single
+-- combined name) matches the users/customers convention. email is
+-- collected by the CRUD UI as an optional field (column stays nullable)
+-- and carries a per-lab uniqueness constraint (not global: two different
+-- labs may each have a product user sharing an email; the same lab may
+-- not). MySQL/MariaDB composite unique indexes treat each NULL as
+-- distinct, so multiple rows in the same lab with no email on file don't
+-- collide with each other, same as the NULL-tolerant uniqueness already
+-- relied on elsewhere in this schema.
 CREATE TABLE lab_product_users (
   product_user_id  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   lab_id           INT UNSIGNED NOT NULL,
-  name             VARCHAR(150) NOT NULL,
-  is_active           TINYINT(1) NOT NULL DEFAULT 1,
+  first_name       VARCHAR(100) NOT NULL,
+  last_name        VARCHAR(100) NOT NULL,
+  email            VARCHAR(254) NULL,
+  active           TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_lab_product_users_lab FOREIGN KEY (lab_id) REFERENCES labs (lab_id),
-  KEY idx_lab_product_users_lab_id (lab_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Holds a list of available nuclides. In the context of this database, a nuclide is an attribute of a product
-CREATE TABLE nuclide (
-  nuclide_name  VARCHAR(30) PRIMARY KEY,
-  is_active     TINYINT(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Holds a list of available products.
-CREATE TABLE products (
-  product_id                INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  nuclide_name              VARCHAR(30) NOT NULL,
-  product_name              VARCHAR(255) NOT NULL,
-  default_delivery_option   ENUM('direct delivery', 'pickup', 'pharmacy'),
-  is_active                 TINYINT(1) NOT NULL DEFAULT 1,
-  CONSTRAINT fk_products_nuclide FOREIGN KEY (nuclide_name) REFERENCES nuclides(nuclide_name) ON DELETE CASCADE ON UPDATE CASCADE 
+  KEY idx_lab_product_users_lab_id (lab_id),
+  UNIQUE KEY uq_lab_product_users_lab_email (lab_id, email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- One unified form for every order type -- no Type A/B split, no
@@ -258,39 +325,60 @@ CREATE TABLE products (
 -- plain NOT NULL can't be made conditional on another column's value
 -- without a trigger, which is more complexity than this needs. There is
 -- no cost column of any kind here -- this project does not track cost.
+-- cancellation_reason is nullable at the DB level for the same reason as
+-- location_id above: it's only conditionally required (whenever a
+-- transition sets status to 'cancelled', from either the customer or
+-- staff cancel path), which transition_order_status() (src/helpers.php)
+-- enforces at the app layer rather than as a DB constraint. It's
+-- structured data tied specifically to the cancel event -- distinct from
+-- the general-purpose notes field above. chargeable is unrelated to the
+-- order lifecycle: staff-only editable, freely toggleable regardless of
+-- status, and never written to order_audit_log since toggling it is not
+-- a status transition. It defaults to 1 (confirmed flip from the original
+-- 0 default): a new order is chargeable unless staff say otherwise, so
+-- "not chargeable" is the exceptional case the UI highlights.
 CREATE TABLE orders (
-  order_id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  product_user_id       INT UNSIGNED NULL,
-  product_id            INT NOT NULL,
-  location_id           INT UNSIGNED NULL,
-  activity_mci          DECIMAL(10,1) NULL,
-  status                ENUM('pending', 'accepted', 'ready for pickup', 'completed', 'canceled', 'returned') DEFAULT 'pending' NOT NULL,
-  created_at            TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  created_by            INT UNSIGNED NOT NULL,
-  delivery_option       ENUM('delivery', 'pickup', 'pharmacy'),
-  delivery_time         TIMESTAMP NOT NULL,
-  processed_by          INT UNSIGNED NULL,
-  processed_at          TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  last_modified_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  last_modified_by      INT UNSIGNED NULL,
-  additional_notes      VARCHAR(500) NULL,
-  cancelation_notes     VARCHAR(500) NULL,
-  CONSTRAINT fk_orders_compound FOREIGN KEY ('compound_id') REFERENCES compounds('compound_id'),
-  CONSTRAINT fk_orders_created_by FOREIGN KEY ('created_by') REFERENCES customers('user_id'),
-  CONSTRAINT fk_orders_processed_by FOREIGN KEY ('processed_by') REFERENCES staff('user_id'),
-  CONSTRAINT fk_orers_last_modified_by FOREIGN KEY ('last_modified_by') REFERENCES users('user_id'),
+  order_id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id          INT UNSIGNED NOT NULL,
+  product_id           INT UNSIGNED NOT NULL,
+  location_id          INT UNSIGNED NULL,
+  product_user_id      INT UNSIGNED NULL,
+  activity_mci         DECIMAL(8,3) NOT NULL,
+  requested_datetime   DATETIME NOT NULL,
+  notes                TEXT NULL,
+  status               ENUM('pending', 'accepted', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
+  cancellation_reason  VARCHAR(500) NULL,
+  chargeable           TINYINT(1) NOT NULL DEFAULT 1,
+  created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_orders_customer        FOREIGN KEY (customer_id)        REFERENCES customers (user_id),
+  CONSTRAINT fk_orders_product         FOREIGN KEY (product_id)         REFERENCES products (product_id),
+  CONSTRAINT fk_orders_location        FOREIGN KEY (location_id)        REFERENCES lab_delivery_locations (location_id),
+  CONSTRAINT fk_orders_product_user    FOREIGN KEY (product_user_id)    REFERENCES lab_product_users (product_user_id),
+  KEY idx_orders_customer_id (customer_id),
+  KEY idx_orders_product_id (product_id),
+  KEY idx_orders_location_id (location_id),
+  KEY idx_orders_product_user_id (product_user_id),
+  KEY idx_orders_status (status),
+  KEY idx_orders_requested_datetime (requested_datetime)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-
+-- Status-only, not field-level diffing -- just status_from, status_to,
+-- who, and when. Every order creation and every status transition writes
+-- a row here, including the creation event itself (status_from NULL,
+-- status_to 'pending'), atomically alongside the status change (an
+-- app-layer responsibility). status_from is nullable specifically for
+-- that creation-event row -- every other row has both endpoints
+-- populated.
 CREATE TABLE order_audit_log (
-  audit_id                                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id                                  INT UNSIGNED NOT NULL,
-  status_from                               ENUM('pending', 'accepted', 'ready for pickup', 'completed', 'cancelled', 'returned') NOT NULL,
-  status_to                                 ENUM('pending', 'accepted', 'ready for pickup', 'completed', 'cancelled', 'returned') NOT NULL,
-  changed_by_user_id                        INT UNSIGNED NOT NULL,
-  changed_at                                TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_order_audit_log_order FOREIGN KEY (order_id) REFERENCES orders (order_id) ON DELETE CASCADE,
+  audit_id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id           INT UNSIGNED NOT NULL,
+  status_from        ENUM('pending', 'accepted', 'completed', 'cancelled') NULL,
+  status_to          ENUM('pending', 'accepted', 'completed', 'cancelled') NOT NULL,
+  changed_by_user_id INT UNSIGNED NOT NULL,
+  changed_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_audit_log_order      FOREIGN KEY (order_id)           REFERENCES orders (order_id) ON DELETE CASCADE,
   CONSTRAINT fk_order_audit_log_changed_by FOREIGN KEY (changed_by_user_id) REFERENCES users (user_id),
   KEY idx_order_audit_log_order_id (order_id),
   KEY idx_order_audit_log_changed_by_user_id (changed_by_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8m
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

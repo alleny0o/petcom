@@ -1,5 +1,5 @@
 <?php
-$accountStmt = get_db()->prepare('SELECT first_name, last_name FROM staff WHERE user_id = ?');
+$accountStmt = get_db()->prepare('SELECT first_name, last_name, phone FROM users WHERE user_id = ?');
 $accountStmt->execute([(int) $_SESSION['user_id']]);
 $accountRow = $accountStmt->fetch();
 $accountName = $accountRow['first_name'] . ' ' . $accountRow['last_name'];
@@ -15,7 +15,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 if (($_GET['profile_updated'] ?? null) === '1') {
     echo toast_flash('success', 'Profile updated.');
 } elseif (($_GET['profile_error'] ?? null) === '1') {
-    echo toast_flash('error', 'First and last name are required.');
+    echo toast_flash('error', 'Please check your profile details and try again.');
 }
 ?>
 <!-- App topbar: always present (see layout/sidebar.css). The
@@ -59,17 +59,17 @@ if (($_GET['profile_updated'] ?? null) === '1') {
               <rect x="14" y="14" width="7" height="7"></rect>
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
-            <span class="menu-label"><span class="menu-label__text">Order Queue</span></span>
+            <span class="menu-label"><span class="menu-label__text">Dashboard</span></span>
           </a>
         </li>
 
         <li class="menu-item">
-          <a href="/staff/past_orders.php" class="menu-link <?= $currentPage === 'past_orders' ? 'active' : '' ?>">
+          <a href="/staff/orders.php" class="menu-link <?= in_array($currentPage, ['orders', 'order_detail'], true) ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 11l3 3L22 4"></path>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
             </svg>
-            <span class="menu-label"><span class="menu-label__text">Past Orders</span></span>
+            <span class="menu-label"><span class="menu-label__text">Order Queue</span></span>
           </a>
         </li>
 
@@ -122,6 +122,10 @@ if (($_GET['profile_updated'] ?? null) === '1') {
             <label for="profile-last-name">Last name <span class="required-mark">*</span></label>
             <input type="text" id="profile-last-name" name="last_name" value="<?= htmlspecialchars($accountRow['last_name']) ?>" required>
           </div>
+        </div>
+        <div class="field">
+          <label for="profile-phone">Phone</label>
+          <input type="text" id="profile-phone" name="phone" value="<?= htmlspecialchars($accountRow['phone'] ?? '') ?>">
         </div>
         <p class="field-hint mb-0">Need to update your password? <a href="/change_password.php">Change Password</a></p>
       </div>

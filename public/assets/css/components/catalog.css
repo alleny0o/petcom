@@ -1,54 +1,8 @@
-/* =================================
-  1. Main Page and Tabs
-================================= */
-/* Folder-Style Tab Navigation CSS */
-.page-tabs {
-  display: flex;
-  gap: 4px; /* Tight gap between folder tabs */
-  margin-bottom: 0; /* Flush with the card below */
-  padding-left: 10px; /* Slight indent so it doesn't hug the left edge */
-}
+/* =========================================
+   1. Catalog Layout & Shell
+========================================= */
 
-.page-tabs a.tab-link {
-  text-decoration: none;
-  color: var(--color-text-secondary);
-  padding: 7px 21px;
-  background-color: var(--color-btn-tertiary-bg); /* Slightly darker background for inactive tabs */
-  border: 1px solid var(--color-border-hr);
-  border-bottom: none; /* Let the card provide the bottom line */
-  border-radius: 8px 8px 0 0; /* Rounded top, flat bottom */
-  font-weight: 500;
-  font-size: 0.95rem;
-  transition: background-color 0.2s ease, color 0.2s ease;
-  position: relative;
-  top: 1px; /* Pull it down 1px to overlap the card's top border */
-  z-index: 1;
-}
-
-.page-tabs a.tab-link:hover {
-  background-color: var(--color-btn-tertiary-bg-hover);
-  color: var(--color-text-primary);
-}
-
-.page-tabs a.tab-link.active {
-  color: var(--color-btn-primary-bg);
-  background-color: var(--color-bg-surface); /* Exact match to the card's background */
-  border-top: 3px solid var(--color-btn-primary-bg); /* Nice highlight bar on top */
-  z-index: 3; /* Brings the active tab above the card's border */
-}
-
-/* Adjust the card to connect cleanly with the tabs */
-.table-card {
-  position: relative;
-  z-index: 2;
-  border-top-left-radius: 0;
-  margin-top: 0;
-}
-
-/* =================================
-  2. Product Catalog
-================================= */
-
+/* The new elevated container */
 .catalog-main {
   background-color: var(--color-bg-surface);
   padding: 30px;
@@ -57,25 +11,80 @@
   margin: 0 auto; /* Centers the shell on wide screens */
 }
 
-/* Drop down for catalog*/
-.catalog-actions {
-  padding: 4px 8px;
-  border: 1px solid var(--color-border-hr);
-  border-radius: 4px;
-  background: var(--color-bg-surface);
-  cursor: pointer;
+/* =========================================
+ 2. Search Form
+========================================= */
+.search-container {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
-/* ---- Status Indications ---- */
+.search-container input[type="text"] {
+  padding: 10px 15px;
+  width: 200px;
+  border: 1px solid var(--color-border-hr);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.search-container button {
+  padding: 10px 20px;
+  background-color: var(--accent, #0056b3);
+  color: var(--white, #ffffff);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.search-container button:hover {
+  background-color: #004085;
+}
+
+.clear-btn {
+  padding: 10px 20px;
+  background-color: #e2e6ea;
+  color: #333;
+  border: 1px solid #dae0e5;
+  border-radius: 6px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.clear-btn:hover {
+  background-color: #d3d9df;
+  color: #111;
+}
+
+.results-count {
+  text-align: left;
+  color: #6c757d;
+  font-size: 0.95em;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 15px;
+}
+
+/* =========================================
+ 3. Status Indicators
+========================================= */
 
 .status-indicator {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 0.9em;
-  color: var(--color-text-primary);
+  color: var(--color-text-primary, #333);
 }
-
 .status-dot {
   display: block;
   width: 8px;
@@ -98,68 +107,32 @@
   align-items: center;
 }
 
+/* =========================================
+ 4. Pagination Controls
+========================================= */
+.catalog-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
 
-/* -------- Add product -------- */
+.catalog-pagination a {
+  padding: 8px 14px;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-hr);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
 
-/* Form Layout Styles - Adjust these to match your site's variables if needed */
-.form-card {
-    background-color: var(--color-bg-surface);
-    padding: 30px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-hr);
-    max-width: 600px;
-    margin: 0 auto;
+.catalog-pagination a:hover {
+  background-color: #e2e6ea;
 }
-.form-group {
-    margin-bottom: 20px;
-}
-.form-group label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 8px;
-    color: var(--color-text-primary);
-}
-.form-control {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--color-border-hr);
-    border-radius: 4px;
-    font-size: 1rem;
-    font-family: inherit;
-}
-textarea.form-control {
-    resize: vertical;
-    min-height: 100px;
-}
-.form-check {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
-}
-.form-check input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-}
-.form-check label {
-    margin-bottom: 0;
-    font-weight: normal;
-    cursor: pointer;
-}
-.alert-error {
-    background-color: #f8d7da;
-    color: #842029;
-    padding: 15px;
-    border-radius: 4px;
-    margin-bottom: 20px;
-    border: 1px solid #f5c2c7;
-}
-.form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 15px;
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid var(--color-border-hr);
+
+.catalog-pagination a.active {
+  background-color: var(--accent, #0056b3);
+  color: var(--white, #ffffff);
+  border-color: var(--accent, #0056b3);
 }
