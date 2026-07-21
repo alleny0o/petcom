@@ -10,9 +10,7 @@ $myUserId = (int) $_SESSION['user_id'];
 // Pre-setting $labId here means layout_customer.php's guarded lookup
 // never re-queries; the save_details path also validates against it
 // before the layout include runs.
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 $orderId = ctype_digit((string) ($_GET['id'] ?? '')) ? (int) $_GET['id'] : 0;
 
@@ -304,16 +302,10 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                     <a href="/customer/orders.php" class="btn btn--secondary">Back to Orders</a>
                 </div>
             <?php else: ?>
-                <?php
-                // Schema enum is 'cancelled' (double-L); the badges.css
-                // variant is 'canceled' -- mapped here rather than relying
-                // on the base .badge styles happening to look right.
-                $statusBadgeClass = $order['status'] === 'cancelled' ? 'canceled' : $order['status'];
-                ?>
                 <div class="page-header">
                     <div>
                         <a href="/customer/orders.php" class="page-header__back mb-4">&larr; Back to Orders</a>
-                        <span class="badge badge--<?= e($statusBadgeClass) ?> page-header__status"><?= e(ucfirst($order['status'])) ?></span>
+                        <span class="badge badge--<?= e($order['status']) ?> page-header__status"><?= e(ucfirst($order['status'])) ?></span>
                         <?php // Chargeable is the default -- quiet text; the
                               // exception gets the warning chip. ?>
                         <?php if ($order['chargeable']): ?>
@@ -381,13 +373,13 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                     // the Delivery section only renders visible when the
                     // (submitted or current) product's fixed delivery method
                     // is direct_delivery, and the fulfillment hint pre-paints
-                    // alongside it. $products/$nuclides/$locations/
-                    // $productUsers come from layout_customer.php's shared
-                    // get_new_order_form_data() load -- the same lists
-                    // backing the new-order modal.
+                    // alongside it. $petcomLayout['products']/['nuclides']/
+                    // ['locations']/['product_users'] come from
+                    // layout_customer.php's shared get_new_order_form_data()
+                    // load -- the same lists backing the new-order modal.
                     $locationVisible = false;
                     $selectedDeliveryLabel = '';
-                    foreach ($products as $p) {
+                    foreach ($petcomLayout['products'] as $p) {
                         if ($editOld['product_id'] === (string) $p['product_id']) {
                             $locationVisible = $p['delivery_method'] === 'direct_delivery';
                             $selectedDeliveryLabel = delivery_method_label($p['delivery_method']);
@@ -424,7 +416,7 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                     <label for="edit_nuclide_id">Nuclide <span class="required-mark">*</span></label>
                                     <select id="edit_nuclide_id" name="nuclide_id" required>
                                         <option value="">Select nuclide&hellip;</option>
-                                        <?php foreach ($nuclides as $n): ?>
+                                        <?php foreach ($petcomLayout['nuclides'] as $n): ?>
                                             <option value="<?= (int) $n['nuclide_id'] ?>" <?= $editOld['nuclide_id'] === (string) $n['nuclide_id'] ? 'selected' : '' ?>><?= e($n['name']) ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -439,11 +431,10 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                               // every label carries its delivery method, and
                                               // the data attributes drive the shared cascade
                                               // (petcomInitOrderCascade in script.js). ?>
-                                        <?php foreach ($products as $p): ?>
+                                        <?php foreach ($petcomLayout['products'] as $p): ?>
                                             <option
                                                 value="<?= (int) $p['product_id'] ?>"
                                                 data-nuclide-id="<?= (int) $p['nuclide_id'] ?>"
-                                                data-delivery-method="<?= e($p['delivery_method']) ?>"
                                                 data-requires-location="<?= $p['delivery_method'] === 'direct_delivery' ? 1 : 0 ?>"
                                                 data-delivery-label="<?= e(delivery_method_label($p['delivery_method'])) ?>"
                                                 <?= $editOld['product_id'] === (string) $p['product_id'] ? 'selected' : '' ?>
@@ -463,11 +454,11 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                     <label for="edit_location_id">Delivery location <span class="required-mark">*</span></label>
                                     <select id="edit_location_id" name="location_id" <?= $locationVisible ? 'required' : 'disabled' ?>>
                                         <option value="">Select a location&hellip;</option>
-                                        <?php foreach ($locations as $loc): ?>
+                                        <?php foreach ($petcomLayout['locations'] as $loc): ?>
                                             <option value="<?= (int) $loc['location_id'] ?>" <?= $editOld['location_id'] === (string) $loc['location_id'] ? 'selected' : '' ?>><?= e($loc['name']) ?><?= $loc['room'] ? ' (' . e($loc['room']) . ')' : '' ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <?php if (!$locations): ?>
+                                    <?php if (!$petcomLayout['locations']): ?>
                                         <span class="field-hint">No delivery locations yet &mdash; <a href="/customer/lab_delivery_locations.php">add one</a>.</span>
                                     <?php endif; ?>
                                     <?= field_error($editErrors, 'location_id') ?>
@@ -497,7 +488,7 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                 <label for="edit_product_user_id">Product user</label>
                                 <select id="edit_product_user_id" name="product_user_id">
                                     <option value="">I'm the recipient&hellip;</option>
-                                    <?php foreach ($productUsers as $pu): ?>
+                                    <?php foreach ($petcomLayout['product_users'] as $pu): ?>
                                         <option value="<?= (int) $pu['product_user_id'] ?>" <?= $editOld['product_user_id'] === (string) $pu['product_user_id'] ? 'selected' : '' ?>><?= e($pu['first_name'] . ' ' . $pu['last_name']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
@@ -706,30 +697,17 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
         </div>
     <?php endif; ?>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($order !== null): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // ---- Strip one-time arrival-toast query flags (placed/cancelled/
+    // Strip one-time arrival-toast query flags (placed/cancelled/
     // updated/notes_updated) from the URL bar once their toast has been
     // queued above, so a reload or back-navigation doesn't re-show a
     // toast for an action that already happened. This is separate from
     // the PRG pattern every POST handler above already uses -- PRG is
     // what stops the browser's resubmit-form prompt; this only stops a
-    // stale success toast from replaying on a plain GET reload. ----
-    var arrivalFlags = ['placed', 'cancelled', 'updated', 'notes_updated'];
-    var urlParams = new URLSearchParams(window.location.search);
-    var hasArrivalFlag = arrivalFlags.some(function (flag) {
-        return urlParams.has(flag);
-    });
-    if (hasArrivalFlag) {
-        arrivalFlags.forEach(function (flag) {
-            urlParams.delete(flag);
-        });
-        var cleanedQuery = urlParams.toString();
-        var cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
-        history.replaceState(null, '', cleanedUrl);
-    }
+    // stale success toast from replaying on a plain GET reload.
+    window.petcomCleanArrivalFlags(['placed', 'cancelled', 'updated', 'notes_updated']);
 
     // Browsers' print dialog includes "Save as PDF", so one native
     // mechanism covers both print and PDF -- no libraries (CLAUDE.md).

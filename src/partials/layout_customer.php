@@ -1,45 +1,30 @@
 <?php
-// Backs the sidebar avatar/name (first_name/last_name), the read-only
-// "My Info" modal below (everything else), and the dashboard's page
-// header + compact My Lab card -- one query covers all of it rather
-// than each surface fetching its own subset.
-$accountStmt = get_db()->prepare(
-    'SELECT u.first_name, u.last_name, u.phone, u.username,
-            l.lab_name, i.name AS institute_name, p.pi_name
-     FROM customers c
-     JOIN users u ON u.user_id = c.user_id
-     LEFT JOIN labs l ON l.lab_id = c.lab_id
-     LEFT JOIN institutes i ON i.institute_id = l.institute_id
-     LEFT JOIN pis p ON p.pi_id = c.supervising_pi_id
-     WHERE c.user_id = ?'
-);
-$accountStmt->execute([(int) $_SESSION['user_id']]);
-$accountRow = $accountStmt->fetch();
-$accountName = $accountRow['first_name'] . ' ' . $accountRow['last_name'];
-$accountInitials = implode('', array_map(
-    fn($w) => mb_substr($w, 0, 1),
-    array_slice(explode(' ', $accountName), 0, 2)
-));
-$currentPage = basename($_SERVER['PHP_SELF'], '.php');
+// $petcomLayout namespaces every value this layout produces (account
+// identity, current page, New Order backing data) so it can never
+// silently collide with a page's own same-named variable -- see
+// CLAUDE.md's reserved-layout-variables table.
+$petcomLayout = layout_account_data((int) $_SESSION['user_id'], $_SESSION['role']);
 
-// Backing data for the New Order modal below, needed on every customer
-// page since the sidebar trigger opens it from anywhere. Guarded so a
-// page that already computed $labId (new_order.php,
-// lab_delivery_locations.php, lab_product_users.php, order_detail.php)
-// doesn't pay for the lookup twice -- and so get_new_order_form_data()
-// itself only ever runs once per request.
+// $labId itself stays a loose variable, not namespaced: every customer
+// page that includes this layout already presets it before the include
+// for its own query-scoping (unrelated to the layout), so this is a
+// page-owned input the layout optionally reads -- not layout-owned
+// output leaking downward. Guarded so a page that already computed it
+// (new_order.php, lab_delivery_locations.php, lab_product_users.php,
+// order_detail.php) doesn't pay for the lookup twice.
 if (!isset($labId)) {
-    $labLookupStmt = get_db()->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-    $labLookupStmt->execute([(int) $_SESSION['user_id']]);
-    $labId = (int) ($labLookupStmt->fetchColumn() ?: 0);
+    $labId = current_customer_lab_id(get_db(), (int) $_SESSION['user_id']);
 }
 
-if (!isset($nuclides)) {
+// Backing data for the New Order modal below, needed on every customer
+// page since the sidebar trigger opens it from anywhere. Guarded so
+// get_new_order_form_data() only ever runs once per request.
+if (!isset($petcomLayout['nuclides'])) {
     $newOrderFormData = get_new_order_form_data(get_db(), $labId);
-    $nuclides = $newOrderFormData['nuclides'];
-    $products = $newOrderFormData['products'];
-    $locations = $newOrderFormData['locations'];
-    $productUsers = $newOrderFormData['product_users'];
+    $petcomLayout['nuclides'] = $newOrderFormData['nuclides'];
+    $petcomLayout['products'] = $newOrderFormData['products'];
+    $petcomLayout['locations'] = $newOrderFormData['locations'];
+    $petcomLayout['product_users'] = $newOrderFormData['product_users'];
 }
 
 ?>
@@ -77,7 +62,7 @@ if (!isset($nuclides)) {
       <ul class="menu-list">
 
         <li class="menu-item">
-          <a href="/customer/dashboard.php" class="menu-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
+          <a href="/customer/dashboard.php" class="menu-link <?= $petcomLayout['current_page'] === 'dashboard' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
@@ -91,7 +76,7 @@ if (!isset($nuclides)) {
         <li class="menu-item">
           <?php // order_detail.php counts as part of the Orders section --
                 // the natural path there is Orders -> detail. ?>
-          <a href="/customer/orders.php" class="menu-link <?= in_array($currentPage, ['orders', 'order_detail'], true) ? 'active' : '' ?>">
+          <a href="/customer/orders.php" class="menu-link <?= in_array($petcomLayout['current_page'], ['orders', 'order_detail'], true) ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
               <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
@@ -101,7 +86,7 @@ if (!isset($nuclides)) {
         </li>
 
         <li class="menu-item">
-          <a href="/customer/lab_delivery_locations.php" class="menu-link <?= $currentPage === 'lab_delivery_locations' ? 'active' : '' ?>">
+          <a href="/customer/lab_delivery_locations.php" class="menu-link <?= $petcomLayout['current_page'] === 'lab_delivery_locations' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
               <circle cx="12" cy="10" r="3"></circle>
@@ -111,7 +96,7 @@ if (!isset($nuclides)) {
         </li>
 
         <li class="menu-item">
-          <a href="/customer/lab_product_users.php" class="menu-link <?= $currentPage === 'lab_product_users' ? 'active' : '' ?>">
+          <a href="/customer/lab_product_users.php" class="menu-link <?= $petcomLayout['current_page'] === 'lab_product_users' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
@@ -127,8 +112,8 @@ if (!isset($nuclides)) {
   <!-- Sidebar Footer -->
   <div class="sidebar-footer">
     <button type="button" class="sidebar-account" data-my-info-trigger aria-haspopup="dialog">
-      <div class="account-avatar"><?= htmlspecialchars($accountInitials) ?></div>
-      <span class="account-name"><?= htmlspecialchars($accountName) ?></span>
+      <div class="account-avatar"><?= e($petcomLayout['initials']) ?></div>
+      <span class="account-name"><?= e($petcomLayout['name']) ?></span>
     </button>
 
     <div class="sidebar-footer-actions">
@@ -172,10 +157,10 @@ if (!isset($nuclides)) {
             // data as the previous pass, just read at a glance rather
             // than key-value scanned. ?>
       <div class="my-info-identity">
-        <div class="my-info-identity__avatar"><?= htmlspecialchars($accountInitials) ?></div>
+        <div class="my-info-identity__avatar"><?= e($petcomLayout['initials']) ?></div>
         <div>
-          <div class="my-info-identity__name"><?= htmlspecialchars($accountName) ?></div>
-          <div class="my-info-identity__username"><?= htmlspecialchars($accountRow['username']) ?> (used to log in)</div>
+          <div class="my-info-identity__name"><?= e($petcomLayout['name']) ?></div>
+          <div class="my-info-identity__username"><?= e($petcomLayout['account']['username']) ?> (used to log in)</div>
         </div>
       </div>
 
@@ -184,7 +169,7 @@ if (!isset($nuclides)) {
         <div class="detail-list">
           <div class="detail-list__row">
             <span class="detail-list__label">Phone</span>
-            <span class="detail-list__value tabular"><?= htmlspecialchars($accountRow['phone'] ?? '—') ?></span>
+            <span class="detail-list__value tabular"><?= e($petcomLayout['account']['phone'] ?? '—') ?></span>
           </div>
         </div>
       </div>
@@ -194,15 +179,15 @@ if (!isset($nuclides)) {
         <div class="detail-list">
           <div class="detail-list__row">
             <span class="detail-list__label">Lab</span>
-            <span class="detail-list__value"><?= htmlspecialchars($accountRow['lab_name'] ?? '—') ?></span>
+            <span class="detail-list__value"><?= e($petcomLayout['account']['lab_name'] ?? '—') ?></span>
           </div>
           <div class="detail-list__row">
             <span class="detail-list__label">Institute</span>
-            <span class="detail-list__value"><?= htmlspecialchars($accountRow['institute_name'] ?? '—') ?></span>
+            <span class="detail-list__value"><?= e($petcomLayout['account']['institute_name'] ?? '—') ?></span>
           </div>
           <div class="detail-list__row">
             <span class="detail-list__label">Supervising PI</span>
-            <span class="detail-list__value"><?= htmlspecialchars($accountRow['pi_name'] ?? '—') ?></span>
+            <span class="detail-list__value"><?= e($petcomLayout['account']['pi_name'] ?? '—') ?></span>
           </div>
         </div>
       </div>
@@ -222,6 +207,7 @@ if (!isset($nuclides)) {
 include __DIR__ . '/new_order_modal.php';
 ?>
 
+<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   // My Info triggers are marked with data-my-info-trigger -- same

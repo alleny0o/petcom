@@ -63,7 +63,6 @@ function attempt_login(string $username, string $password): array
     $_SESSION['user_id'] = (int) $user['user_id'];
     $_SESSION['username'] = $user['username'];
     $_SESSION['role'] = $role;
-    $_SESSION['role_id'] = (int) $user['user_id']; // admins/staff/customers all key off user_id
     $_SESSION['must_change_password'] = (bool) $user['must_change_password'];
     $_SESSION['last_activity'] = time();
 
@@ -74,9 +73,9 @@ function attempt_login(string $username, string $password): array
  * Whether a session role satisfies a page's role requirement.
  *
  * admin ⊆ staff is a hard DB-level invariant (admins.user_id -> staff.user_id
- * FK, Phase A.2) — every admin also has a staff row, so an admin session
- * must satisfy staff-only pages. This is one-directional: staff does NOT
- * satisfy admin-only pages.
+ * FK) — every admin also has a staff row, so an admin session must satisfy
+ * staff-only pages. This is one-directional: staff does NOT satisfy
+ * admin-only pages.
  */
 function role_satisfies(string $sessionRole, string $requiredRole): bool
 {

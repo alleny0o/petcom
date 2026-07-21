@@ -9,9 +9,7 @@ $myUserId = (int) $_SESSION['user_id'];
 
 // Pre-setting $labId here means layout_customer.php's guarded lookup
 // never re-queries -- same convention as orders.php.
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 // Shared with orders.php: previous last-seen marker for the row dots
 // (null = first visit this session, no dots), and this visit becomes
@@ -68,18 +66,18 @@ $pageTitle = 'Dashboard';
 </head>
 <body>
     <div class="app-shell">
-        <?php // The include also sets $accountRow (name/username/lab/institute
-              // for the page header + My Lab card below) and $products
-              // (active, institute-scoped catalog rows for the New Order
-              // modal, counted by the Available Products tile) -- neither
-              // needs re-querying here. ?>
+        <?php // The include also sets $petcomLayout['account'] (name/username/
+              // lab/institute for the page header + My Lab card below) and
+              // $petcomLayout['products'] (active, institute-scoped catalog
+              // rows for the New Order modal, counted by the Available
+              // Products tile) -- neither needs re-querying here. ?>
         <?php include __DIR__ . '/../../src/partials/layout_customer.php'; ?>
         <main class="app-main">
             <div class="page-header">
                 <div>
                     <span class="page-header__eyebrow">Customer</span>
                     <h1>Dashboard</h1>
-                    <span class="page-header__meta">Signed in as <?= e($accountRow['username']) ?></span>
+                    <span class="page-header__meta">Signed in as <?= e($petcomLayout['account']['username']) ?></span>
                 </div>
                 <div class="page-header__actions">
                     <?php // Plain link to the orders page -- the New Order
@@ -112,7 +110,7 @@ $pageTitle = 'Dashboard';
                           // the catalog is browsed inside the New Order form. ?>
                     <div class="stat-tile">
                         <span class="stat-tile__label">Available Products</span>
-                        <span class="stat-tile__value tabular"><?= count($products) ?></span>
+                        <span class="stat-tile__value tabular"><?= count($petcomLayout['products']) ?></span>
                         <span class="stat-tile__meta">Active in your catalog</span>
                     </div>
                 </div>
@@ -163,13 +161,7 @@ $pageTitle = 'Dashboard';
                                     </thead>
                                     <tbody>
                                         <?php foreach ($recentOrders as $o): ?>
-                                            <?php
-                                            // Schema enum is 'cancelled' (double-L); the
-                                            // badges.css variant is 'canceled' -- same
-                                            // mapping as orders.php/order_detail.php.
-                                            $badgeClass = $o['status'] === 'cancelled' ? 'canceled' : $o['status'];
-                                            $isUpdated = $lastOrdersSeen !== null && strtotime($o['updated_at']) > $lastOrdersSeen;
-                                            ?>
+                                            <?php $isUpdated = $lastOrdersSeen !== null && strtotime($o['updated_at']) > $lastOrdersSeen; ?>
                                             <tr>
                                                 <td class="tabular">
                                                     <span class="table-flag"><?php if ($isUpdated): ?><span class="dot dot--info" title="Updated since your last visit"></span><span class="sr-only">Updated since your last visit</span><?php endif; ?></span><?= (int) $o['order_id'] ?>
@@ -181,7 +173,7 @@ $pageTitle = 'Dashboard';
                                                       // chargeable is the default (muted), "Not
                                                       // chargeable" the full-weight exception. ?>
                                                 <td>
-                                                    <div><span class="badge badge--<?= e($badgeClass) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
+                                                    <div><span class="badge badge--<?= e($o['status']) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
                                                     <?php if ($o['chargeable']): ?>
                                                         <div class="muted text-sm">Chargeable</div>
                                                     <?php else: ?>
@@ -213,8 +205,8 @@ $pageTitle = 'Dashboard';
                                 </svg>
                             </div>
                             <div>
-                                <div class="my-info-identity__name"><?= e($accountRow['lab_name'] ?? '—') ?></div>
-                                <div class="my-info-identity__username"><?= e($accountRow['institute_name'] ?? '—') ?></div>
+                                <div class="my-info-identity__name"><?= e($petcomLayout['account']['lab_name'] ?? '—') ?></div>
+                                <div class="my-info-identity__username"><?= e($petcomLayout['account']['institute_name'] ?? '—') ?></div>
                             </div>
                         </div>
                         <button type="button" class="btn btn--secondary btn--sm" data-my-info-trigger>View full info</button>
@@ -247,5 +239,4 @@ $pageTitle = 'Dashboard';
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 </html>

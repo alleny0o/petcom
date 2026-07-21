@@ -168,21 +168,6 @@ function initSidebarSubmenus() {
       }
     });
   });
-
-  // A clicked submenu-link's destination is always one of its own
-  // submenu's children, so a full page navigation always lands back on
-  // that same submenu, server-rendered expanded again — there's nothing
-  // to fix up here. The one real stale-state case is a bfcache "Back"
-  // restore, which skips that fresh server render entirely; handled
-  // below by re-syncing every submenu against its own .active link
-  // instead, the same rule PHP used to decide is-expanded in the first
-  // place.
-  window.addEventListener('pageshow', (e) => {
-    if (!e.persisted) return;
-    document.querySelectorAll('.menu-item--has-submenu').forEach((item) => {
-      setSubmenuExpanded(item, !!item.querySelector('.submenu-link.active'));
-    });
-  });
 }
 
 
@@ -211,14 +196,17 @@ function closeSidebarFlyout() {
 }
 
 function buildSidebarFlyout(item) {
+  const labelText = item.querySelector('.menu-label__text')?.textContent.trim() || 'Menu';
+  const slug = labelText.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
   const panel = document.createElement('div');
   panel.className = 'sidebar-flyout';
-  panel.id = 'accounts-flyout';
+  panel.id = `${slug}-flyout`;
   panel.setAttribute('role', 'menu');
 
   const heading = document.createElement('div');
   heading.className = 'sidebar-flyout__title';
-  heading.textContent = 'Accounts';
+  heading.textContent = labelText;
   panel.appendChild(heading);
 
   const list = document.createElement('ul');
@@ -352,6 +340,30 @@ function showToast(type, message, options = {}) {
 }
 
 window.showToast = showToast;
+
+
+// ===== Arrival-flag URL cleanup ====================================
+// Strips one-shot PRG arrival-toast query flags (e.g. ?created=1) from
+// the URL bar once their toast has been queued server-side, so a reload
+// or back-navigation doesn't replay a stale success toast for an action
+// that already happened. Separate from the PRG pattern itself -- PRG
+// stops the browser's resubmit-form prompt; this only stops the toast
+// replay on a plain GET reload/back-nav. Called from each page's own
+// inline script with that page's flag list, e.g.
+// petcomCleanArrivalFlags(['created', 'updated', 'activated', 'deactivated']).
+
+function petcomCleanArrivalFlags(flags) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasArrivalFlag = flags.some((flag) => urlParams.has(flag));
+  if (!hasArrivalFlag) return;
+
+  flags.forEach((flag) => urlParams.delete(flag));
+  const cleanedQuery = urlParams.toString();
+  const cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
+  history.replaceState(null, '', cleanedUrl);
+}
+
+window.petcomCleanArrivalFlags = petcomCleanArrivalFlags;
 
 
 // ===== Modals =====================================================

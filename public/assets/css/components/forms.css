@@ -123,12 +123,6 @@ textarea {
   color: var(--color-error);
 }
 
-/* Quiet "— optional" aside inside a field label */
-.label-optional {
-  font-weight: 400;
-  color: var(--color-text-tertiary);
-}
-
 /* Grouped form sections with a small uppercase title */
 .form-section + .form-section {
   border-top: 1px solid var(--color-border-hr);
@@ -143,10 +137,4 @@ textarea {
   text-transform: uppercase;
   color: var(--color-text-tertiary);
   margin-bottom: var(--sp-4);
-}
-/* Quiet aside after a section title (e.g. "— optional") */
-.form-section__suffix {
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 400;
 }

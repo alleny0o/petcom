@@ -59,11 +59,6 @@ a.stat-tile:hover {
   color: var(--color-text-tertiary);
   margin-top: var(--sp-1);
 }
-/* Word-valued tiles (a category name, not a count) */
-.stat-tile__value--text {
-  font-size: 20px;
-}
-
 /* Small status dot, usable anywhere (stat labels, list rows) */
 .dot {
   display: inline-block;
@@ -73,7 +68,6 @@ a.stat-tile:hover {
   background: var(--status-neutral);
   flex-shrink: 0;
 }
-.dot--success { background: var(--status-success); }
 .dot--warning { background: var(--status-warning); }
 .dot--error   { background: var(--status-error); }
 .dot--info    { background: var(--status-info); }
@@ -87,20 +81,6 @@ a.stat-tile:hover {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: var(--sp-4);
   align-items: start;
-}
-.dash-grid--even {
-  grid-template-columns: 1fr 1fr;
-}
-/* Side column (staff dashboard) taller than a single card's natural
-   height: stretch the grid item to the table's height so the two column
-   bottoms align. Pairs with the .dash-stack rule below, which routes the
-   leftover room into the gap *between* the stacked cards instead of dead
-   space trailing the last one. */
-.dash-grid--fill {
-  align-items: stretch;
-}
-.dash-grid--fill .dash-stack > :last-child {
-  margin-top: auto;
 }
 .dash-grid > .card,
 .dash-grid > .table-card {
@@ -118,8 +98,7 @@ a.stat-tile:hover {
   margin: 0;
 }
 @media (max-width: 900px) {
-  .dash-grid,
-  .dash-grid--even {
+  .dash-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -155,11 +134,4 @@ a.stat-tile:hover {
   font-size: 12px;
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-5);
 }

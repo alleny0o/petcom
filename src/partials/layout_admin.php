@@ -1,13 +1,9 @@
 <?php
-$accountStmt = get_db()->prepare('SELECT first_name, last_name, phone FROM users WHERE user_id = ?');
-$accountStmt->execute([(int) $_SESSION['user_id']]);
-$accountRow = $accountStmt->fetch();
-$accountName = $accountRow['first_name'] . ' ' . $accountRow['last_name'];
-$accountInitials = implode('', array_map(
-    fn($w) => mb_substr($w, 0, 1),
-    array_slice(explode(' ', $accountName), 0, 2)
-));
-$currentPage = basename($_SERVER['PHP_SELF'], '.php');
+// $petcomLayout namespaces every value this layout produces (account
+// identity, current page, submenu expand/active state) so it can never
+// silently collide with a page's own same-named variable -- see
+// CLAUDE.md's reserved-layout-variables table.
+$petcomLayout = layout_account_data((int) $_SESSION['user_id'], $_SESSION['role']);
 
 // The profile-edit modal below always redirects back here, tagging the
 // outcome via a query flag (no session-flash mechanism in this app —
@@ -21,17 +17,17 @@ if (($_GET['profile_updated'] ?? null) === '1') {
 // The three account-workflow pages now live under one expandable
 // "Accounts" parent — expand it server-side when we're already on one
 // of them, so the correct state renders on first paint with no JS.
-$accountsChildPages = ['registrations', 'customers', 'customer_detail', 'accounts', 'account_detail'];
-$accountsSectionActive = in_array($currentPage, $accountsChildPages, true);
+$petcomLayout['accounts_child_pages'] = ['registrations', 'customers', 'customer_detail', 'accounts', 'account_detail'];
+$petcomLayout['accounts_section_active'] = in_array($petcomLayout['current_page'], $petcomLayout['accounts_child_pages'], true);
 
 // Catalog pages live under their own expandable parent, same mechanism
 // as Accounts above.
-$catalogChildPages = ['nuclides', 'products'];
-$catalogSectionActive = in_array($currentPage, $catalogChildPages, true);
+$petcomLayout['catalog_child_pages'] = ['nuclides', 'products'];
+$petcomLayout['catalog_section_active'] = in_array($petcomLayout['current_page'], $petcomLayout['catalog_child_pages'], true);
 
 // Directory pages (Institutes / Labs / PIs), same mechanism again.
-$directoryChildPages = ['labs', 'institutes', 'pis'];
-$directorySectionActive = in_array($currentPage, $directoryChildPages, true);
+$petcomLayout['directory_child_pages'] = ['labs', 'institutes', 'pis'];
+$petcomLayout['directory_section_active'] = in_array($petcomLayout['current_page'], $petcomLayout['directory_child_pages'], true);
 ?>
 <!-- App topbar: always present (see layout/sidebar.css). The
      hamburger button inside it is the only mobile-specific part. -->
@@ -67,7 +63,7 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
       <ul class="menu-list">
 
         <li class="menu-item">
-          <a href="/admin/dashboard.php" class="menu-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
+          <a href="/admin/dashboard.php" class="menu-link <?= $petcomLayout['current_page'] === 'dashboard' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
@@ -79,7 +75,7 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
         </li>
 
         <li class="menu-item">
-          <a href="/admin/reports.php" class="menu-link <?= $currentPage === 'reports' ? 'active' : '' ?>">
+          <a href="/admin/reports.php" class="menu-link <?= $petcomLayout['current_page'] === 'reports' ? 'active' : '' ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="20" x2="18" y2="10"></line>
               <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -89,8 +85,8 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
           </a>
         </li>
 
-        <li class="menu-item menu-item--has-submenu <?= $accountsSectionActive ? 'is-expanded' : '' ?>">
-          <button type="button" class="menu-link <?= $accountsSectionActive ? 'menu-link--section-active' : '' ?>" aria-expanded="<?= $accountsSectionActive ? 'true' : 'false' ?>" aria-controls="accounts-submenu">
+        <li class="menu-item menu-item--has-submenu <?= $petcomLayout['accounts_section_active'] ? 'is-expanded' : '' ?>">
+          <button type="button" class="menu-link <?= $petcomLayout['accounts_section_active'] ? 'menu-link--section-active' : '' ?>" aria-expanded="<?= $petcomLayout['accounts_section_active'] ? 'true' : 'false' ?>" aria-controls="accounts-submenu">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
@@ -105,20 +101,20 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
           <div class="submenu-wrapper">
             <ul class="submenu" id="accounts-submenu">
               <li>
-                <a href="/admin/registrations.php" class="submenu-link <?= $currentPage === 'registrations' ? 'active' : '' ?>">Pending Registrations</a>
+                <a href="/admin/registrations.php" class="submenu-link <?= $petcomLayout['current_page'] === 'registrations' ? 'active' : '' ?>">Pending Registrations</a>
               </li>
               <li>
-                <a href="/admin/customers.php" class="submenu-link <?= in_array($currentPage, ['customers', 'customer_detail'], true) ? 'active' : '' ?>">Customers</a>
+                <a href="/admin/customers.php" class="submenu-link <?= in_array($petcomLayout['current_page'], ['customers', 'customer_detail'], true) ? 'active' : '' ?>">Customers</a>
               </li>
               <li>
-                <a href="/admin/accounts.php" class="submenu-link <?= in_array($currentPage, ['accounts', 'account_detail'], true) ? 'active' : '' ?>">Staff &amp; Admins</a>
+                <a href="/admin/accounts.php" class="submenu-link <?= in_array($petcomLayout['current_page'], ['accounts', 'account_detail'], true) ? 'active' : '' ?>">Staff &amp; Admins</a>
               </li>
             </ul>
           </div>
         </li>
 
-        <li class="menu-item menu-item--has-submenu <?= $catalogSectionActive ? 'is-expanded' : '' ?>">
-          <button type="button" class="menu-link <?= $catalogSectionActive ? 'menu-link--section-active' : '' ?>" aria-expanded="<?= $catalogSectionActive ? 'true' : 'false' ?>" aria-controls="catalog-submenu">
+        <li class="menu-item menu-item--has-submenu <?= $petcomLayout['catalog_section_active'] ? 'is-expanded' : '' ?>">
+          <button type="button" class="menu-link <?= $petcomLayout['catalog_section_active'] ? 'menu-link--section-active' : '' ?>" aria-expanded="<?= $petcomLayout['catalog_section_active'] ? 'true' : 'false' ?>" aria-controls="catalog-submenu">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
               <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
@@ -132,17 +128,17 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
           <div class="submenu-wrapper">
             <ul class="submenu" id="catalog-submenu">
               <li>
-                <a href="/admin/nuclides.php" class="submenu-link <?= $currentPage === 'nuclides' ? 'active' : '' ?>">Nuclides</a>
+                <a href="/admin/nuclides.php" class="submenu-link <?= $petcomLayout['current_page'] === 'nuclides' ? 'active' : '' ?>">Nuclides</a>
               </li>
               <li>
-                <a href="/admin/products.php" class="submenu-link <?= $currentPage === 'products' ? 'active' : '' ?>">Products</a>
+                <a href="/admin/products.php" class="submenu-link <?= $petcomLayout['current_page'] === 'products' ? 'active' : '' ?>">Products</a>
               </li>
             </ul>
           </div>
         </li>
 
-        <li class="menu-item menu-item--has-submenu <?= $directorySectionActive ? 'is-expanded' : '' ?>">
-          <button type="button" class="menu-link <?= $directorySectionActive ? 'menu-link--section-active' : '' ?>" aria-expanded="<?= $directorySectionActive ? 'true' : 'false' ?>" aria-controls="directory-submenu">
+        <li class="menu-item menu-item--has-submenu <?= $petcomLayout['directory_section_active'] ? 'is-expanded' : '' ?>">
+          <button type="button" class="menu-link <?= $petcomLayout['directory_section_active'] ? 'menu-link--section-active' : '' ?>" aria-expanded="<?= $petcomLayout['directory_section_active'] ? 'true' : 'false' ?>" aria-controls="directory-submenu">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
@@ -155,13 +151,13 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
           <div class="submenu-wrapper">
             <ul class="submenu" id="directory-submenu">
               <li>
-                <a href="/admin/institutes.php" class="submenu-link <?= $currentPage === 'institutes' ? 'active' : '' ?>">Institutes</a>
+                <a href="/admin/institutes.php" class="submenu-link <?= $petcomLayout['current_page'] === 'institutes' ? 'active' : '' ?>">Institutes</a>
               </li>
               <li>
-                <a href="/admin/labs.php" class="submenu-link <?= $currentPage === 'labs' ? 'active' : '' ?>">Labs</a>
+                <a href="/admin/labs.php" class="submenu-link <?= $petcomLayout['current_page'] === 'labs' ? 'active' : '' ?>">Labs</a>
               </li>
               <li>
-                <a href="/admin/pis.php" class="submenu-link <?= $currentPage === 'pis' ? 'active' : '' ?>">PIs</a>
+                <a href="/admin/pis.php" class="submenu-link <?= $petcomLayout['current_page'] === 'pis' ? 'active' : '' ?>">PIs</a>
               </li>
             </ul>
           </div>
@@ -178,71 +174,4 @@ $directorySectionActive = in_array($currentPage, $directoryChildPages, true);
   </div>
   <?php endif; ?>
 
-  <!-- Sidebar Footer -->
-  <div class="sidebar-footer">
-    <button type="button" class="sidebar-account" id="profile-edit-trigger" aria-haspopup="dialog">
-      <div class="account-avatar"><?= htmlspecialchars($accountInitials) ?></div>
-      <span class="account-name"><?= htmlspecialchars($accountName) ?></span>
-    </button>
-
-    <div class="sidebar-footer-actions">
-      <form method="post" action="/logout.php" class="logout-form">
-        <?= csrf_field() ?>
-        <button type="submit" class="logout-link" aria-label="Log out">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-            <polyline points="16 17 21 12 16 7"></polyline>
-            <line x1="21" y1="12" x2="9" y2="12"></line>
-          </svg>
-        </button>
-      </form>
-    </div>
-  </div>
-</aside>
-
-<!-- Profile edit modal: self-service first/last name edit, opened from
-     the sidebar account block above. Separate from admin/account_detail.php,
-     which edits *other* accounts -- this always targets $_SESSION['user_id']. -->
-<div class="modal-overlay" id="profile-edit-modal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-edit-modal-title">
-    <form method="post" action="/account_profile.php">
-      <?= csrf_field() ?>
-      <input type="hidden" name="redirect_to" id="profile-redirect-to" value="">
-      <div class="modal__body">
-        <h2 class="modal__title" id="profile-edit-modal-title">Edit profile</h2>
-        <div class="field-row">
-          <div class="field">
-            <label for="profile-first-name">First name <span class="required-mark">*</span></label>
-            <input type="text" id="profile-first-name" name="first_name" value="<?= htmlspecialchars($accountRow['first_name']) ?>" required data-modal-focus>
-          </div>
-          <div class="field">
-            <label for="profile-last-name">Last name <span class="required-mark">*</span></label>
-            <input type="text" id="profile-last-name" name="last_name" value="<?= htmlspecialchars($accountRow['last_name']) ?>" required>
-          </div>
-        </div>
-        <div class="field">
-          <label for="profile-phone">Phone</label>
-          <input type="text" id="profile-phone" name="phone" value="<?= htmlspecialchars($accountRow['phone'] ?? '') ?>">
-        </div>
-        <p class="field-hint mb-0">Need to update your password? <a href="/change_password.php">Change Password</a></p>
-      </div>
-      <div class="modal__footer">
-        <button type="button" class="btn btn--ghost" data-modal-close>Cancel</button>
-        <button type="submit" class="btn btn--primary">Save</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var trigger = document.getElementById('profile-edit-trigger');
-  var modal = document.getElementById('profile-edit-modal');
-  var redirectInput = document.getElementById('profile-redirect-to');
-
-  trigger.addEventListener('click', function (e) {
-    redirectInput.value = window.location.pathname + window.location.search;
-    window.petcomOpenModal(modal, { opener: e.currentTarget });
-  });
-});
-</script>
+  <?php include __DIR__ . '/_sidebar_footer.php'; ?>

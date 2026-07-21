@@ -7,7 +7,6 @@ require_role('staff');
 $pdo = get_db();
 
 const QUEUE_DEFAULT_PAGE_SIZE = 10;
-const QUEUE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 // Pure triage list -- no actions, no POST handler. Every lifecycle
 // action (accept/return/complete/cancel) and the chargeable toggle now
@@ -26,40 +25,17 @@ $queueFrom = isset($_GET['requested_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/
 $queueTo = isset($_GET['requested_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['requested_to'])
     ? $_GET['requested_to'] : '';
 $queuePage = isset($_GET['page']) && ctype_digit((string) $_GET['page']) ? max(1, (int) $_GET['page']) : 1;
-$queuePageSize = in_array((int) ($_GET['page_size'] ?? 0), QUEUE_PAGE_SIZE_OPTIONS, true)
+$queuePageSize = in_array((int) ($_GET['page_size'] ?? 0), PAGE_SIZE_OPTIONS, true)
     ? (int) $_GET['page_size'] : QUEUE_DEFAULT_PAGE_SIZE;
 
-// Canonicalize $_GET so every link built via queue_query() below (tabs,
+// Canonicalize $_GET so every link built via build_query() below (tabs,
 // pagination) carries the real applied values forward.
-$_GET['status'] = $queueStatus;
-$_GET['page_size'] = (string) $queuePageSize;
-if ($queueFrom !== '') {
-    $_GET['requested_from'] = $queueFrom;
-} else {
-    unset($_GET['requested_from']);
-}
-if ($queueTo !== '') {
-    $_GET['requested_to'] = $queueTo;
-} else {
-    unset($_GET['requested_to']);
-}
-
-/**
- * Builds a query string from the current (already-canonicalized) GET
- * params with the given overrides applied, dropping empty values --
- * same convention as customer/orders.php's orders_query(). Used for the
- * status tabs and pagination links.
- */
-function queue_query(array $overrides = []): string
-{
-    $params = array_merge($_GET, $overrides);
-    foreach ($params as $key => $value) {
-        if ($value === '' || $value === null) {
-            unset($params[$key]);
-        }
-    }
-    return http_build_query($params);
-}
+canonicalize_get([
+    'status' => $queueStatus,
+    'page_size' => $queuePageSize,
+    'requested_from' => $queueFrom,
+    'requested_to' => $queueTo,
+]);
 
 // Lab/institute/PI joined (LEFT -- customers.lab_id/supervising_pi_id
 // are both nullable) so the search box can cover them per CLAUDE.md's
@@ -91,7 +67,6 @@ $queueFilterWhere = [];
 $queueFilterParams = [];
 
 if ($queueSearch !== '') {
-    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $queueSearch);
     $queueFilterWhere[] = "(CAST(o.order_id AS CHAR) LIKE ? ESCAPE '\\\\'
                  OR COALESCE(CONCAT(pu.first_name, ' ', pu.last_name), CONCAT(u.first_name, ' ', u.last_name)) LIKE ? ESCAPE '\\\\'
                  OR n.name LIKE ? ESCAPE '\\\\'
@@ -99,7 +74,7 @@ if ($queueSearch !== '') {
                  OR l.lab_name LIKE ? ESCAPE '\\\\'
                  OR i.name LIKE ? ESCAPE '\\\\'
                  OR pi.pi_name LIKE ? ESCAPE '\\\\')";
-    $like = '%' . $escaped . '%';
+    $like = like_contains($queueSearch);
     array_push($queueFilterParams, $like, $like, $like, $like, $like, $like, $like);
 }
 if ($queueFulfillment !== '') {
@@ -115,7 +90,7 @@ if ($queueTo !== '') {
     $queueFilterParams[] = $queueTo . ' 23:59:59';
 }
 
-$queueFilterWhereSql = $queueFilterWhere ? ('WHERE ' . implode(' AND ', $queueFilterWhere)) : '';
+$queueFilterWhereSql = where_clause($queueFilterWhere);
 
 $queueCountsStmt = $pdo->prepare("SELECT o.status, COUNT(*) AS c $queueJoins $queueFilterWhereSql GROUP BY o.status");
 $queueCountsStmt->execute($queueFilterParams);
@@ -155,11 +130,13 @@ if ($queueStatus !== '') {
     $queueWhere[] = 'o.status = ?';
     $queueParams[] = $queueStatus;
 }
-$queueWhereSql = $queueWhere ? ('WHERE ' . implode(' AND ', $queueWhere)) : '';
+$queueWhereSql = where_clause($queueWhere);
 
-$queueTotalPages = max(1, (int) ceil($queueTotalCount / $queuePageSize));
-$queuePage = min($queuePage, $queueTotalPages);
-$queueOffset = ($queuePage - 1) * $queuePageSize;
+$queuePagination = paginate($queueTotalCount, $queuePage, $queuePageSize);
+$queuePage = $queuePagination['page'];
+$queueTotalPages = $queuePagination['totalPages'];
+$queueOffset = $queuePagination['offset'];
+canonicalize_get(['page' => $queuePage]);
 
 // LIMIT/OFFSET interpolated directly -- both are server-computed ints at
 // this point (page size clamped against a fixed option set, offset
@@ -207,7 +184,7 @@ $pageTitle = 'Order Queue';
 
             <nav class="status-tabs" aria-label="Filter by status">
                 <?php foreach ($queueTabs as $tab): ?>
-                    <a href="?<?= e(queue_query(['status' => $tab['value'], 'page' => 1])) ?>" class="status-tabs__link <?= $queueStatus === $tab['value'] ? 'is-active' : '' ?>">
+                    <a href="?<?= e(build_query(['status' => $tab['value'], 'page' => 1])) ?>" class="status-tabs__link <?= $queueStatus === $tab['value'] ? 'is-active' : '' ?>">
                         <?= e($tab['label']) ?> <span class="status-tabs__count"><?= $tab['count'] ?></span>
                     </a>
                 <?php endforeach; ?>
@@ -286,11 +263,11 @@ $pageTitle = 'Order Queue';
                                 <?php // Preserves the active status tab -- only the
                                       // search/fulfillment/date filters clear, same
                                       // convention as customer/orders.php. ?>
-                                <a href="?<?= e(queue_query(['q' => null, 'fulfillment' => null, 'requested_from' => null, 'requested_to' => null, 'page' => 1])) ?>" class="btn btn--secondary btn--sm">Clear filters</a>
+                                <a href="?<?= e(build_query(['q' => null, 'fulfillment' => null, 'requested_from' => null, 'requested_to' => null, 'page' => 1])) ?>" class="btn btn--secondary btn--sm">Clear filters</a>
                             </div>
                         <?php elseif ($queueStatus !== ''): ?>
                             <div class="empty-state__action">
-                                <a href="?<?= e(queue_query(['status' => null, 'page' => 1])) ?>" class="btn btn--secondary btn--sm">View all orders</a>
+                                <a href="?<?= e(build_query(['status' => null, 'page' => 1])) ?>" class="btn btn--secondary btn--sm">View all orders</a>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -310,12 +287,6 @@ $pageTitle = 'Order Queue';
                             </thead>
                             <tbody>
                                 <?php foreach ($queueOrders as $o): ?>
-                                    <?php
-                                    // Schema enum is 'cancelled' (double-L); the
-                                    // badges.css variant is 'canceled' -- same
-                                    // mapping as customer/orders.php.
-                                    $queueBadgeClass = $o['status'] === 'cancelled' ? 'canceled' : $o['status'];
-                                    ?>
                                     <tr>
                                         <td class="tabular"><?= (int) $o['order_id'] ?></td>
                                         <td class="tabular nowrap"><?= e(date('M j, Y H:i', strtotime($o['requested_datetime']))) ?></td>
@@ -332,7 +303,7 @@ $pageTitle = 'Order Queue';
                                               // chargeable" is the exception that reads at full
                                               // weight. ?>
                                         <td>
-                                            <div><span class="badge badge--<?= e($queueBadgeClass) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
+                                            <div><span class="badge badge--<?= e($o['status']) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
                                             <?php if ($o['chargeable']): ?>
                                                 <div class="muted text-sm">Chargeable</div>
                                             <?php else: ?>
@@ -346,53 +317,29 @@ $pageTitle = 'Order Queue';
                         </table>
                     </div>
 
-                    <div class="table-pagination">
-                        <div class="table-pagination__status-group">
-                            <span class="table-pagination__status">Showing <?= $queueRangeStart ?>&ndash;<?= $queueRangeEnd ?> of <?= $queueTotalCount ?></span>
-                            <form method="get" class="table-card-controls">
-                                <input type="hidden" name="q" value="<?= e($queueSearch) ?>">
-                                <input type="hidden" name="status" value="<?= e($queueStatus) ?>">
-                                <input type="hidden" name="fulfillment" value="<?= e($queueFulfillment) ?>">
-                                <input type="hidden" name="requested_from" value="<?= e($queueFrom) ?>">
-                                <input type="hidden" name="requested_to" value="<?= e($queueTo) ?>">
-                                <input type="hidden" name="page" value="1">
-                                <label for="queue-page-size" class="sr-only">Orders per page</label>
-                                <select name="page_size" id="queue-page-size" onchange="this.form.submit()">
-                                    <?php foreach (QUEUE_PAGE_SIZE_OPTIONS as $option): ?>
-                                        <option value="<?= $option ?>" <?= $queuePageSize === $option ? 'selected' : '' ?>><?= $option ?> / page</option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </form>
-                        </div>
-                        <div class="table-pagination__controls">
-                            <?php if ($queuePage <= 1): ?>
-                                <span class="btn btn--secondary btn--sm" aria-disabled="true" aria-hidden="true">&lsaquo;</span>
-                            <?php else: ?>
-                                <a href="?<?= e(queue_query(['page' => $queuePage - 1])) ?>" class="btn btn--secondary btn--sm" aria-label="Previous page">&lsaquo;</a>
-                            <?php endif; ?>
-                            <form method="get" class="table-card-controls table-pagination__jump">
-                                <input type="hidden" name="q" value="<?= e($queueSearch) ?>">
-                                <input type="hidden" name="status" value="<?= e($queueStatus) ?>">
-                                <input type="hidden" name="fulfillment" value="<?= e($queueFulfillment) ?>">
-                                <input type="hidden" name="requested_from" value="<?= e($queueFrom) ?>">
-                                <input type="hidden" name="requested_to" value="<?= e($queueTo) ?>">
-                                <input type="hidden" name="page_size" value="<?= e((string) $queuePageSize) ?>">
-                                <label for="queue-page-jump" class="sr-only">Go to page</label>
-                                <input type="number" name="page" id="queue-page-jump" min="1" max="<?= $queueTotalPages ?>" value="<?= $queuePage ?>">
-                                <span class="table-pagination__status">of <?= $queueTotalPages ?></span>
-                                <button type="submit" class="btn btn--secondary btn--sm">Go</button>
-                            </form>
-                            <?php if ($queuePage >= $queueTotalPages): ?>
-                                <span class="btn btn--secondary btn--sm" aria-disabled="true" aria-hidden="true">&rsaquo;</span>
-                            <?php else: ?>
-                                <a href="?<?= e(queue_query(['page' => $queuePage + 1])) ?>" class="btn btn--secondary btn--sm" aria-label="Next page">&rsaquo;</a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                    <?php
+                    $tablePagination = [
+                        'idPrefix' => 'queue-',
+                        'itemLabel' => 'Orders',
+                        'hiddenFields' => [
+                            'q' => $queueSearch,
+                            'status' => $queueStatus,
+                            'fulfillment' => $queueFulfillment,
+                            'requested_from' => $queueFrom,
+                            'requested_to' => $queueTo,
+                        ],
+                        'page' => $queuePage,
+                        'totalPages' => $queueTotalPages,
+                        'pageSize' => $queuePageSize,
+                        'rangeStart' => $queueRangeStart,
+                        'rangeEnd' => $queueRangeEnd,
+                        'totalCount' => $queueTotalCount,
+                    ];
+                    include __DIR__ . '/../../src/partials/table_pagination.php';
+                    ?>
                 <?php endif; ?>
             </div>
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 </html>

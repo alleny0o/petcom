@@ -392,7 +392,6 @@ $pageTitle = $customer !== null ? ($customer['first_name'] . ' ' . $customer['la
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($customer !== null): ?>
 <script>
 (function () {

@@ -235,16 +235,10 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                     <a href="/staff/orders.php" class="btn btn--secondary">Back to Order Queue</a>
                 </div>
             <?php else: ?>
-                <?php
-                // Schema enum is 'cancelled' (double-L); the badges.css
-                // variant is 'canceled' -- same mapping as every other
-                // order-status render in this app.
-                $statusBadgeClass = $order['status'] === 'cancelled' ? 'canceled' : $order['status'];
-                ?>
                 <div class="page-header">
                     <div>
                         <a href="/staff/orders.php" class="page-header__back mb-4">&larr; Back to Order Queue</a>
-                        <span class="badge badge--<?= e($statusBadgeClass) ?> page-header__status"><?= e(ucfirst($order['status'])) ?></span>
+                        <span class="badge badge--<?= e($order['status']) ?> page-header__status"><?= e(ucfirst($order['status'])) ?></span>
                         <?php // Chargeable is the default -- quiet text; the
                               // exception gets the warning chip. ?>
                         <?php if ($order['chargeable']): ?>
@@ -616,25 +610,12 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
         </div>
     <?php endif; ?>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($order !== null): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // ---- Strip one-time arrival-toast query flags once their toast has
-    // been queued above -- same convention as customer/order_detail.php. ----
-    var arrivalFlags = ['accepted', 'returned', 'completed', 'cancelled', 'reopened', 'chargeable_updated', 'notes_updated'];
-    var urlParams = new URLSearchParams(window.location.search);
-    var hasArrivalFlag = arrivalFlags.some(function (flag) {
-        return urlParams.has(flag);
-    });
-    if (hasArrivalFlag) {
-        arrivalFlags.forEach(function (flag) {
-            urlParams.delete(flag);
-        });
-        var cleanedQuery = urlParams.toString();
-        var cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
-        history.replaceState(null, '', cleanedUrl);
-    }
+    // Strip one-time arrival-toast query flags once their toast has
+    // been queued above -- same convention as customer/order_detail.php.
+    window.petcomCleanArrivalFlags(['accepted', 'returned', 'completed', 'cancelled', 'reopened', 'chargeable_updated', 'notes_updated']);
 
     // Browsers' print dialog includes "Save as PDF", so one native
     // mechanism covers both print and PDF -- no libraries (CLAUDE.md).

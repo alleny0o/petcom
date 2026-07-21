@@ -284,5 +284,4 @@ $pageTitle = $account !== null ? ($account['first_name'] . ' ' . $account['last_
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 </html>

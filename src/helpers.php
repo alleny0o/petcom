@@ -1,6 +1,6 @@
 <?php
 /**
- * Session bootstrap, CSRF tokens, HTML escaping, redirects.
+ * Shared helper functions used across all three roles.
  */
 
 // Every page includes this file, so this is the one place that needs to run
@@ -115,9 +115,12 @@ function asset_url(string $path): string
 
 /**
  * Emits a script tag that pops a toast once the page has loaded.
- * Used for transient success feedback on pages that re-render after
- * a POST (this app doesn't redirect-after-POST); persistent messages
- * (errors, temp passwords) stay as inline .alert markup instead.
+ * Used for transient success feedback -- both on the PRG (redirect-after-
+ * POST with an arrival-flag query param) convention most pages use, and on
+ * the handful of pages that re-render the same POST response inline
+ * instead (a one-time secret like a temp password can't safely round-trip
+ * through a redirect); persistent messages (errors, temp passwords) stay
+ * as inline .alert markup instead.
  * json_encode with the HEX flags makes the values safe to embed in
  * an inline <script> (no </script> or quote breakouts).
  */
@@ -162,8 +165,7 @@ function field_class(array $fieldErrors, string $key, string $base = 'field'): s
 /**
  * Builds a display name like "Alice Carter" from a customer's
  * first/last name. Falls back to the username when the customer has no
- * name on file (not-yet-approved rows) or the joined row belongs to a
- * non-customer (staff/admin authors on a shared comment thread).
+ * name on file (not-yet-approved rows).
  */
 function customer_display_name(?string $firstName, ?string $lastName, string $usernameFallback): string
 {
@@ -410,9 +412,7 @@ function format_activity_mci(string $activity): string
  * Whether $role may edit an order's Notes field. Staff/admin always can,
  * on any order; a customer only on their own order. This is the
  * confirmed permission model for orders.notes (the single shared,
- * overwritable communication channel) -- defined ahead of its consumers:
- * only order creation exists today, so nothing calls this yet, but the
- * order-detail rebuild and staff dashboard will.
+ * overwritable communication channel).
  */
 function can_edit_order_notes(string $role, bool $isOwnOrder): bool
 {
@@ -618,4 +618,159 @@ function mark_orders_seen(): ?int
     $_SESSION['last_orders_seen'] = time();
 
     return $previous;
+}
+
+// Allowed page-size choices for every list page's page-size selector --
+// identical everywhere; each page keeps its own *_DEFAULT_PAGE_SIZE
+// constant since the default deliberately differs (10 customer/staff, 20
+// admin).
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+/**
+ * Builds a query string from the current $_GET with the given overrides
+ * applied, dropping empty/null values. Shared by every list page's status
+ * tabs, pagination links, and POST-form actions, so paging/filtering never
+ * drops the rest of the active view.
+ */
+function build_query(array $overrides = []): string
+{
+    $params = array_merge($_GET, $overrides);
+    foreach ($params as $key => $value) {
+        if ($value === '' || $value === null) {
+            unset($params[$key]);
+        }
+    }
+    return http_build_query($params);
+}
+
+/**
+ * Writes each already-whitelisted/clamped filter value back into $_GET, so
+ * build_query() (which reads $_GET) reflects the real applied values
+ * rather than raw/invalid query-string input -- e.g. an out-of-enum
+ * ?status=garbage gets overwritten with the validated '' before any link
+ * on this render is built. build_query() already drops empty values when
+ * assembling a query string, so values are written as-is here -- no
+ * unset-if-empty branching needed.
+ */
+function canonicalize_get(array $values): void
+{
+    foreach ($values as $key => $value) {
+        $_GET[$key] = (string) $value;
+    }
+}
+
+/**
+ * Clamped pagination math shared by every list page: total pages (at
+ * least 1), the current page clamped into range, the LIMIT offset, and the
+ * human "Showing X-Y of Z" range endpoints.
+ */
+function paginate(int $totalCount, int $page, int $pageSize): array
+{
+    $totalPages = max(1, (int) ceil($totalCount / $pageSize));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $pageSize;
+
+    return [
+        'page' => $page,
+        'totalPages' => $totalPages,
+        'offset' => $offset,
+        'rangeStart' => $totalCount > 0 ? $offset + 1 : 0,
+        'rangeEnd' => min($offset + $pageSize, $totalCount),
+    ];
+}
+
+/**
+ * Escapes LIKE wildcards in a raw search term and wraps it in %...% --
+ * shared by every list page's search box so a literal % or _ in the
+ * search term is matched literally rather than as a wildcard. Pair with
+ * `LIKE ? ESCAPE '\\\\'` at the call site (the escape character itself is
+ * SQL text, not part of this helper).
+ */
+function like_contains(string $q): string
+{
+    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+    return '%' . $escaped . '%';
+}
+
+/**
+ * The signed-in customer's lab_id, or 0 if none is assigned yet. Shared
+ * by every customer-role page (and layout_customer.php's own guarded
+ * lookup) that needs to scope a query to "my lab".
+ */
+function current_customer_lab_id(PDO $pdo, int $userId): int
+{
+    $stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+/**
+ * Backs the sidebar avatar/name/initials and the My Info / profile-edit
+ * modals on all 3 layouts -- one query shape for customers (needs
+ * lab/institute/PI via joins), another for staff/admin (plain users
+ * row), selected by $role so an admin viewing staff pages still reports
+ * accurately.
+ */
+function layout_account_data(int $userId, string $role): array
+{
+    $pdo = get_db();
+    if ($role === 'customer') {
+        $stmt = $pdo->prepare(
+            'SELECT u.first_name, u.last_name, u.phone, u.username,
+                    l.lab_name, i.name AS institute_name, p.pi_name
+             FROM customers c
+             JOIN users u ON u.user_id = c.user_id
+             LEFT JOIN labs l ON l.lab_id = c.lab_id
+             LEFT JOIN institutes i ON i.institute_id = l.institute_id
+             LEFT JOIN pis p ON p.pi_id = c.supervising_pi_id
+             WHERE c.user_id = ?'
+        );
+    } else {
+        $stmt = $pdo->prepare('SELECT first_name, last_name, phone FROM users WHERE user_id = ?');
+    }
+    $stmt->execute([$userId]);
+    $account = $stmt->fetch();
+    $name = $account['first_name'] . ' ' . $account['last_name'];
+    $initials = implode('', array_map(
+        fn($w) => mb_substr($w, 0, 1),
+        array_slice(explode(' ', $name), 0, 2)
+    ));
+
+    return [
+        'account' => $account,
+        'name' => $name,
+        'initials' => $initials,
+        'current_page' => basename($_SERVER['PHP_SELF'], '.php'),
+    ];
+}
+
+/**
+ * Captures one-shot PRG arrival-toast flags (?created=1 etc.) into a
+ * boolean map and strips them from $_GET, so this render's own
+ * pagination/tab links (built via build_query()) never carry a stale
+ * flag forward. The client-side petcomCleanArrivalFlags() (script.js)
+ * handles the other half -- a manual reload/back-nav of the arrived-at
+ * URL, which this server-side strip alone can't prevent.
+ */
+function consume_arrival_flags(array $flags): array
+{
+    $result = [];
+    foreach ($flags as $flag) {
+        $result[$flag] = ($_GET[$flag] ?? null) === '1';
+        unset($_GET[$flag]);
+    }
+    return $result;
+}
+
+/**
+ * Turns a list of SQL condition fragments into a WHERE clause, or '' if
+ * the list is empty. Shared scaffolding for every filtered list page's
+ * two-step count-then-list query pair (build WHERE without status, count,
+ * extend WHERE with status, list) -- the per-shape status-counting SQL
+ * itself (GROUP BY status / GROUP BY active / derived CASE) stays
+ * page-specific, only this WHERE-assembly step is identical everywhere.
+ */
+function where_clause(array $conditions): string
+{
+    return $conditions ? ('WHERE ' . implode(' AND ', $conditions)) : '';
 }
