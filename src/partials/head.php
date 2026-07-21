@@ -3,7 +3,7 @@
 //   <?php $pageTitle = 'Home'; include '../src/partials/head.php'; ?>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= htmlspecialchars($pageTitle) ?> | PETCOM</title>
+<title><?= e($pageTitle) ?> | PETCOM</title>
 
 <!-- Favicons: static files in public/favicons/, no PHP processing needed -->
 <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">

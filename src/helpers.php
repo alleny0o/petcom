@@ -705,6 +705,46 @@ function current_customer_lab_id(PDO $pdo, int $userId): int
 }
 
 /**
+ * Backs the sidebar avatar/name/initials and the My Info / profile-edit
+ * modals on all 3 layouts -- one query shape for customers (needs
+ * lab/institute/PI via joins), another for staff/admin (plain users
+ * row), selected by $role so an admin viewing staff pages still reports
+ * accurately.
+ */
+function layout_account_data(int $userId, string $role): array
+{
+    $pdo = get_db();
+    if ($role === 'customer') {
+        $stmt = $pdo->prepare(
+            'SELECT u.first_name, u.last_name, u.phone, u.username,
+                    l.lab_name, i.name AS institute_name, p.pi_name
+             FROM customers c
+             JOIN users u ON u.user_id = c.user_id
+             LEFT JOIN labs l ON l.lab_id = c.lab_id
+             LEFT JOIN institutes i ON i.institute_id = l.institute_id
+             LEFT JOIN pis p ON p.pi_id = c.supervising_pi_id
+             WHERE c.user_id = ?'
+        );
+    } else {
+        $stmt = $pdo->prepare('SELECT first_name, last_name, phone FROM users WHERE user_id = ?');
+    }
+    $stmt->execute([$userId]);
+    $account = $stmt->fetch();
+    $name = $account['first_name'] . ' ' . $account['last_name'];
+    $initials = implode('', array_map(
+        fn($w) => mb_substr($w, 0, 1),
+        array_slice(explode(' ', $name), 0, 2)
+    ));
+
+    return [
+        'account' => $account,
+        'name' => $name,
+        'initials' => $initials,
+        'current_page' => basename($_SERVER['PHP_SELF'], '.php'),
+    ];
+}
+
+/**
  * Captures one-shot PRG arrival-toast flags (?created=1 etc.) into a
  * boolean map and strips them from $_GET, so this render's own
  * pagination/tab links (built via build_query()) never carry a stale

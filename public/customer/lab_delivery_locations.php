@@ -123,13 +123,16 @@ if ($labId > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Named $deliveryLocations (not $locations) deliberately: layout_customer.php
-// (included below) guards its own New-Order-modal backing data on
-// isset($nuclides), not isset($locations) -- so a same-named $locations
-// here would get silently overwritten by get_new_order_form_data()'s
-// active-only, no-active-column result (src/helpers.php's
-// get_new_order_form_data()) after this point in the request, corrupting
-// this page's own full list.
+// Named $deliveryLocations (not $locations): layout_customer.php's
+// New-Order-modal backing data now lives namespaced under
+// $petcomLayout['locations'] (guarded on isset($petcomLayout['nuclides'])),
+// so this name is no longer strictly required to avoid a collision --
+// kept anyway since $deliveryLocations is the established name here and
+// renaming it back is an unrelated cosmetic change. Historically, before
+// that namespacing, a same-named $locations here would have been
+// silently overwritten by get_new_order_form_data()'s active-only,
+// no-active-column result after this point in the request -- this exact
+// collision was the root cause of every earlier bug on this page.
 $deliveryLocations = [];
 $totalCount = 0;
 $totalPages = 1;
@@ -421,7 +424,6 @@ $pageTitle = 'Delivery Locations';
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($labId > 0): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {

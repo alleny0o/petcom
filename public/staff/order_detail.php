@@ -610,7 +610,6 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
         </div>
     <?php endif; ?>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($order !== null): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {

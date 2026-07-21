@@ -474,7 +474,6 @@ $pageTitle = 'PIs';
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   function snapshotForm(form) {

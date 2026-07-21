@@ -373,13 +373,13 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                     // the Delivery section only renders visible when the
                     // (submitted or current) product's fixed delivery method
                     // is direct_delivery, and the fulfillment hint pre-paints
-                    // alongside it. $products/$nuclides/$locations/
-                    // $productUsers come from layout_customer.php's shared
-                    // get_new_order_form_data() load -- the same lists
-                    // backing the new-order modal.
+                    // alongside it. $petcomLayout['products']/['nuclides']/
+                    // ['locations']/['product_users'] come from
+                    // layout_customer.php's shared get_new_order_form_data()
+                    // load -- the same lists backing the new-order modal.
                     $locationVisible = false;
                     $selectedDeliveryLabel = '';
-                    foreach ($products as $p) {
+                    foreach ($petcomLayout['products'] as $p) {
                         if ($editOld['product_id'] === (string) $p['product_id']) {
                             $locationVisible = $p['delivery_method'] === 'direct_delivery';
                             $selectedDeliveryLabel = delivery_method_label($p['delivery_method']);
@@ -416,7 +416,7 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                     <label for="edit_nuclide_id">Nuclide <span class="required-mark">*</span></label>
                                     <select id="edit_nuclide_id" name="nuclide_id" required>
                                         <option value="">Select nuclide&hellip;</option>
-                                        <?php foreach ($nuclides as $n): ?>
+                                        <?php foreach ($petcomLayout['nuclides'] as $n): ?>
                                             <option value="<?= (int) $n['nuclide_id'] ?>" <?= $editOld['nuclide_id'] === (string) $n['nuclide_id'] ? 'selected' : '' ?>><?= e($n['name']) ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -431,7 +431,7 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                               // every label carries its delivery method, and
                                               // the data attributes drive the shared cascade
                                               // (petcomInitOrderCascade in script.js). ?>
-                                        <?php foreach ($products as $p): ?>
+                                        <?php foreach ($petcomLayout['products'] as $p): ?>
                                             <option
                                                 value="<?= (int) $p['product_id'] ?>"
                                                 data-nuclide-id="<?= (int) $p['nuclide_id'] ?>"
@@ -454,11 +454,11 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                     <label for="edit_location_id">Delivery location <span class="required-mark">*</span></label>
                                     <select id="edit_location_id" name="location_id" <?= $locationVisible ? 'required' : 'disabled' ?>>
                                         <option value="">Select a location&hellip;</option>
-                                        <?php foreach ($locations as $loc): ?>
+                                        <?php foreach ($petcomLayout['locations'] as $loc): ?>
                                             <option value="<?= (int) $loc['location_id'] ?>" <?= $editOld['location_id'] === (string) $loc['location_id'] ? 'selected' : '' ?>><?= e($loc['name']) ?><?= $loc['room'] ? ' (' . e($loc['room']) . ')' : '' ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <?php if (!$locations): ?>
+                                    <?php if (!$petcomLayout['locations']): ?>
                                         <span class="field-hint">No delivery locations yet &mdash; <a href="/customer/lab_delivery_locations.php">add one</a>.</span>
                                     <?php endif; ?>
                                     <?= field_error($editErrors, 'location_id') ?>
@@ -488,7 +488,7 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                                 <label for="edit_product_user_id">Product user</label>
                                 <select id="edit_product_user_id" name="product_user_id">
                                     <option value="">I'm the recipient&hellip;</option>
-                                    <?php foreach ($productUsers as $pu): ?>
+                                    <?php foreach ($petcomLayout['product_users'] as $pu): ?>
                                         <option value="<?= (int) $pu['product_user_id'] ?>" <?= $editOld['product_user_id'] === (string) $pu['product_user_id'] ? 'selected' : '' ?>><?= e($pu['first_name'] . ' ' . $pu['last_name']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
@@ -697,7 +697,6 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
         </div>
     <?php endif; ?>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($order !== null): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {

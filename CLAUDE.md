@@ -166,12 +166,17 @@ petcom/
     helpers.php          (session bootstrap, CSRF, escaping, redirects,
                           toast_flash, field_error/field_class,
                           validate_order_input(), asset_url() —
-                          filemtime cache-buster for CSS/JS links)
+                          filemtime cache-buster for CSS/JS links,
+                          layout_account_data() — shared account-identity
+                          query backing all 3 layouts' $petcomLayout)
     partials/
       head.php
       layout_customer.php
       layout_staff.php
       layout_admin.php
+      _sidebar_footer.php  (shared sidebar account button + profile-edit
+                            modal, included from layout_staff.php /
+                            layout_admin.php only)
       new_order_form.php
       new_order_modal.php
 
@@ -196,23 +201,49 @@ either.
 
 `layout_customer.php`, `layout_staff.php`, and `layout_admin.php` are plain
 `include`s executed mid-page, so every variable they assign lands in the
-including page's own scope — not a sandboxed template context. A page
-including one of these must treat the following names as taken:
+including page's own scope — not a sandboxed template context. To keep that
+leakage from silently colliding with a page's own variables (the root cause
+of a past real bug — see below), everything each layout produces is
+namespaced under a single `$petcomLayout` array rather than loose
+same-named variables. A page including one of these must still treat the
+following as taken:
 
 | Layout | Reserved names | Notes |
 |---|---|---|
-| `layout_customer.php` | `$accountStmt`, `$accountRow`, `$accountName`, `$accountInitials`, `$currentPage`, `$labId`, `$newOrderFormData`, `$nuclides`, `$products`, `$locations`, `$productUsers` | `$labId` is an optional caller input (looked up via `current_customer_lab_id()` only if unset); `$nuclides` is the only guard key — a page that pre-sets `$products`/`$locations`/`$productUsers` but not `$nuclides` gets silently overwritten |
-| `layout_staff.php` | `$accountStmt`, `$accountRow`, `$accountName`, `$accountInitials`, `$currentPage` | Also reads `$_GET['profile_updated']`/`['profile_error']` and echoes toasts — side effects beyond markup |
-| `layout_admin.php` | staff's five, plus `$accountsChildPages`, `$accountsSectionActive`, `$catalogChildPages`, `$catalogSectionActive`, `$directoryChildPages`, `$directorySectionActive` | Same `$_GET` toast block duplicated verbatim |
+| `layout_customer.php` | `$petcomLayout` (`['account']`, `['name']`, `['initials']`, `['current_page']`, `['nuclides']`, `['products']`, `['locations']`, `['product_users']`), plus a loose `$labId` | `$labId` is the one deliberate exception, not namespaced: every customer page presets it themselves before the include for their own query-scoping (unrelated to the layout), so it's a page-owned input the layout optionally reads (`if (!isset($labId))`), not layout-owned output — folding it into `$petcomLayout` would mean renaming 40+ unrelated business-logic call sites across 5 pages for no bug-fixing benefit |
+| `layout_staff.php` | `$petcomLayout` (`['account']`, `['name']`, `['initials']`, `['current_page']`) | Also reads `$_GET['profile_updated']`/`['profile_error']` and echoes toasts — side effects beyond markup |
+| `layout_admin.php` | staff's `$petcomLayout` keys, plus `['accounts_child_pages']`, `['accounts_section_active']`, `['catalog_child_pages']`, `['catalog_section_active']`, `['directory_child_pages']`, `['directory_section_active']` | Same `$_GET` toast block duplicated verbatim |
 | `head.php` | expects `$pageTitle` from caller | Used unguarded — a page that forgets it gets a PHP notice + broken title |
+
+All 3 layouts populate `$petcomLayout['account']`/`['name']`/`['initials']`/
+`['current_page']` via the shared `layout_account_data()` helper
+(`src/helpers.php`) — one function, two query shapes (customer needs
+lab/institute/PI joins; staff/admin share a plain `users` row), selected by
+a `$role` argument so it stays correct even when an admin is viewing staff
+pages. `layout_staff.php` and `layout_admin.php` also share their sidebar
+footer (account button + profile-edit modal + its init script) via
+`src/partials/_sidebar_footer.php` — byte-identical between the two before
+that extraction, so don't fork it without a documented reason (mirrors the
+`table_pagination.php` convention: reads `$petcomLayout` straight from the
+caller's scope, no parameters).
 
 `new_order_modal.php` is the one collision-safe partial — its `$old`/
 `$fieldErrors` are closure-wrapped rather than assigned into the including
-scope. Two pages currently depend on the leakage on purpose:
-`customer/dashboard.php` reads `$accountRow` after the layout include, and
-`customer/order_detail.php` consumes `$nuclides`/`$products`/`$locations`/
-`$productUsers` from the layout for its edit form — treat these as an
-undocumented API surface, not incidental reuse, if you touch either layout.
+scope; it takes `$petcomLayout['nuclides']`/`['products']`/`['locations']`/
+`['product_users']`/`$labId` as explicit closure params. Two pages depend on
+`$petcomLayout` beyond that on purpose: `customer/dashboard.php` reads
+`$petcomLayout['account']`/`['products']` after the layout include, and
+`customer/order_detail.php` consumes `$petcomLayout['nuclides']`/
+`['products']`/`['locations']`/`['product_users']` from the layout for its
+edit form — treat these as an undocumented API surface, not incidental
+reuse, if you touch either layout. (Before namespacing, the bare
+`$nuclides`/`$products`/`$locations`/`$productUsers` names this replaced
+were the root cause of a real bug on `lab_delivery_locations.php` — a page
+that declared its own same-named variable got it silently overwritten by
+the layout's New Order data. `lab_product_users.php`/
+`lab_delivery_locations.php` still use deliberately different names
+(`$productUsersList`/`$deliveryLocations`) for their own lists as a result,
+even though namespacing has since closed that specific collision.)
 
 ## Database
 

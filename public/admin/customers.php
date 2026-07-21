@@ -243,7 +243,6 @@ $pageTitle = 'Customers';
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <script>
 (function () {
   var instituteSelect = document.getElementById('filter_institute_id');

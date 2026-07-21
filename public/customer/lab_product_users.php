@@ -153,16 +153,17 @@ if ($labId > 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Named $productUsersList (not $productUsers) deliberately: layout_customer.php
-// (included below) guards its own New-Order-modal backing data on
-// isset($nuclides), not isset($productUsers) -- so a same-named
-// $productUsers here would get silently overwritten by
-// get_new_order_form_data()'s active-only, no-email/no-active-column
-// result (src/helpers.php's get_new_order_form_data()) after this point
-// in the request, corrupting this page's own full list. Confirmed via
-// grep against layout_customer.php's actual variable assignments before
-// naming this -- this exact collision (with $locations) was the root
-// cause of every earlier bug on lab_delivery_locations.php.
+// Named $productUsersList (not $productUsers): layout_customer.php's
+// New-Order-modal backing data now lives namespaced under
+// $petcomLayout['product_users'] (guarded on isset($petcomLayout['nuclides'])),
+// so this name is no longer strictly required to avoid a collision --
+// kept anyway since $productUsersList is the established name here and
+// renaming it back is an unrelated cosmetic change. Historically, before
+// that namespacing, a same-named $productUsers here would have been
+// silently overwritten by get_new_order_form_data()'s active-only,
+// no-email/no-active-column result after this point in the request --
+// this exact collision (with $locations) was the root cause of every
+// earlier bug on lab_delivery_locations.php.
 $productUsersList = [];
 $totalCount = 0;
 $totalPages = 1;
@@ -472,7 +473,6 @@ $pageTitle = 'Product Users';
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 <?php if ($labId > 0): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {

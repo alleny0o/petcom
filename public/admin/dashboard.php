@@ -231,5 +231,4 @@ $recentRejections = $pdo->query(
         </main>
     </div>
 </body>
-<script src="<?= asset_url('/assets/js/script.js') ?>" defer></script>
 </html>
