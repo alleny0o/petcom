@@ -78,6 +78,24 @@ function e(string $string): string
     return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * Neutralizes CSV formula injection: if $value starts with a character
+ * spreadsheet apps (Excel/Sheets) treat as a formula trigger (=, +, -,
+ * @) or a raw tab/CR, prefixes it with a single quote so it's forced to
+ * render as literal text instead of executing as a formula when the
+ * export is opened. Byte-level check is safe on multibyte input --
+ * UTF-8 continuation/lead bytes are always >= 0x80, so they never
+ * collide with these ASCII trigger characters.
+ */
+function csv_safe(?string $value): string
+{
+    $value = (string) $value;
+    if ($value !== '' && strpbrk($value[0], "=+-@\t\r") !== false) {
+        return "'" . $value;
+    }
+    return $value;
+}
+
 function redirect(string $path): void
 {
     header('Location: ' . $path);
