@@ -678,3 +678,59 @@ function paginate(int $totalCount, int $page, int $pageSize): array
         'rangeEnd' => min($offset + $pageSize, $totalCount),
     ];
 }
+
+/**
+ * Escapes LIKE wildcards in a raw search term and wraps it in %...% --
+ * shared by every list page's search box so a literal % or _ in the
+ * search term is matched literally rather than as a wildcard. Pair with
+ * `LIKE ? ESCAPE '\\\\'` at the call site (the escape character itself is
+ * SQL text, not part of this helper).
+ */
+function like_contains(string $q): string
+{
+    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+    return '%' . $escaped . '%';
+}
+
+/**
+ * The signed-in customer's lab_id, or 0 if none is assigned yet. Shared
+ * by every customer-role page (and layout_customer.php's own guarded
+ * lookup) that needs to scope a query to "my lab".
+ */
+function current_customer_lab_id(PDO $pdo, int $userId): int
+{
+    $stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+/**
+ * Captures one-shot PRG arrival-toast flags (?created=1 etc.) into a
+ * boolean map and strips them from $_GET, so this render's own
+ * pagination/tab links (built via build_query()) never carry a stale
+ * flag forward. The client-side petcomCleanArrivalFlags() (script.js)
+ * handles the other half -- a manual reload/back-nav of the arrived-at
+ * URL, which this server-side strip alone can't prevent.
+ */
+function consume_arrival_flags(array $flags): array
+{
+    $result = [];
+    foreach ($flags as $flag) {
+        $result[$flag] = ($_GET[$flag] ?? null) === '1';
+        unset($_GET[$flag]);
+    }
+    return $result;
+}
+
+/**
+ * Turns a list of SQL condition fragments into a WHERE clause, or '' if
+ * the list is empty. Shared scaffolding for every filtered list page's
+ * two-step count-then-list query pair (build WHERE without status, count,
+ * extend WHERE with status, list) -- the per-shape status-counting SQL
+ * itself (GROUP BY status / GROUP BY active / derived CASE) stays
+ * page-specific, only this WHERE-assembly step is identical everywhere.
+ */
+function where_clause(array $conditions): string
+{
+    return $conditions ? ('WHERE ' . implode(' AND ', $conditions)) : '';
+}

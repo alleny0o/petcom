@@ -6,7 +6,7 @@ require_role('admin');
 
 $pdo = get_db();
 
-const ACCOUNTS_DEFAULT_PAGE_SIZE = 20;
+const ACCOUNTS_DEFAULT_PAGE_SIZE = 10;
 
 $q = trim($_GET['q'] ?? '');
 $role = $_GET['role'] ?? '';
@@ -135,10 +135,10 @@ if ($q !== '') {
     // Escape LIKE wildcards in the search term itself, same convention
     // as customers.php -- matches either the staff member's name or
     // their username (email).
-    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+    $like = like_contains($q);
     $where[] = "(CONCAT(u.first_name, ' ', u.last_name) LIKE ? ESCAPE '\\\\' OR u.username LIKE ? ESCAPE '\\\\')";
-    $params[] = '%' . $escaped . '%';
-    $params[] = '%' . $escaped . '%';
+    $params[] = $like;
+    $params[] = $like;
 }
 if ($role === 'staff') {
     $where[] = 'a.user_id IS NULL';
@@ -146,7 +146,7 @@ if ($role === 'staff') {
     $where[] = 'a.user_id IS NOT NULL';
 }
 
-$whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+$whereSql = where_clause($where);
 
 // Built without the status condition -- reused for the tab counts (each
 // tab's count reflects the current search/role scope, not global counts)
@@ -181,7 +181,7 @@ if ($status === 'active') {
 } elseif ($status === 'inactive') {
     $listWhere[] = 'u.active = 0';
 }
-$listWhereSql = $listWhere ? ('WHERE ' . implode(' AND ', $listWhere)) : '';
+$listWhereSql = where_clause($listWhere);
 
 $pagination = paginate($totalCount, $page, $pageSize);
 $page = $pagination['page'];

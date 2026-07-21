@@ -29,9 +29,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 // doesn't pay for the lookup twice -- and so get_new_order_form_data()
 // itself only ever runs once per request.
 if (!isset($labId)) {
-    $labLookupStmt = get_db()->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-    $labLookupStmt->execute([(int) $_SESSION['user_id']]);
-    $labId = (int) ($labLookupStmt->fetchColumn() ?: 0);
+    $labId = current_customer_lab_id(get_db(), (int) $_SESSION['user_id']);
 }
 
 if (!isset($nuclides)) {

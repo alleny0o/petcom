@@ -6,15 +6,12 @@ require_role('admin'); // directory management is admin-only
 
 $pdo = get_db();
 
-const PIS_DEFAULT_PAGE_SIZE = 20;
+const PIS_DEFAULT_PAGE_SIZE = 10;
 
 // One-shot arrival-toast flags set by the PRG redirects below -- same
 // convention as nuclides.php / institutes.php.
-$justCreated = ($_GET['created'] ?? null) === '1';
-$justUpdated = ($_GET['updated'] ?? null) === '1';
-$justActivated = ($_GET['activated'] ?? null) === '1';
-$justDeactivated = ($_GET['deactivated'] ?? null) === '1';
-unset($_GET['created'], $_GET['updated'], $_GET['activated'], $_GET['deactivated']);
+['created' => $justCreated, 'updated' => $justUpdated, 'activated' => $justActivated, 'deactivated' => $justDeactivated]
+    = consume_arrival_flags(['created', 'updated', 'activated', 'deactivated']);
 
 $q = trim($_GET['q'] ?? '');
 $status = in_array($_GET['status'] ?? '', ['active', 'inactive'], true) ? $_GET['status'] : '';
@@ -156,12 +153,11 @@ $params = [];
 if ($q !== '') {
     // Escape LIKE wildcards in the search term itself, same convention
     // as accounts.php / nuclides.php.
-    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
     $where[] = "p.pi_name LIKE ? ESCAPE '\\\\'";
-    $params[] = '%' . $escaped . '%';
+    $params[] = like_contains($q);
 }
 
-$whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+$whereSql = where_clause($where);
 
 // Built without the status condition -- reused for the tab counts and
 // then extended below for the actual list, same pattern as nuclides.php.
@@ -192,7 +188,7 @@ if ($status === 'active') {
 } elseif ($status === 'inactive') {
     $listWhere[] = 'p.active = 0';
 }
-$listWhereSql = $listWhere ? ('WHERE ' . implode(' AND ', $listWhere)) : '';
+$listWhereSql = where_clause($listWhere);
 
 $pagination = paginate($totalCount, $page, $pageSize);
 $page = $pagination['page'];
@@ -589,21 +585,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }, null);
   <?php endif; ?>
 
-  // ---- Strip one-time arrival-toast query flags from the URL bar once
-  // their toast has been queued -- same fix as nuclides.php. ----
-  var arrivalFlags = ['created', 'updated', 'activated', 'deactivated'];
-  var urlParams = new URLSearchParams(window.location.search);
-  var hasArrivalFlag = arrivalFlags.some(function (flag) {
-    return urlParams.has(flag);
-  });
-  if (hasArrivalFlag) {
-    arrivalFlags.forEach(function (flag) {
-      urlParams.delete(flag);
-    });
-    var cleanedQuery = urlParams.toString();
-    var cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
-    history.replaceState(null, '', cleanedUrl);
-  }
+  // Strip one-time arrival-toast query flags from the URL bar once their
+  // toast has been queued -- same fix as nuclides.php.
+  window.petcomCleanArrivalFlags(['created', 'updated', 'activated', 'deactivated']);
 });
 </script>
 </html>

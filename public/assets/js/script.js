@@ -342,6 +342,30 @@ function showToast(type, message, options = {}) {
 window.showToast = showToast;
 
 
+// ===== Arrival-flag URL cleanup ====================================
+// Strips one-shot PRG arrival-toast query flags (e.g. ?created=1) from
+// the URL bar once their toast has been queued server-side, so a reload
+// or back-navigation doesn't replay a stale success toast for an action
+// that already happened. Separate from the PRG pattern itself -- PRG
+// stops the browser's resubmit-form prompt; this only stops the toast
+// replay on a plain GET reload/back-nav. Called from each page's own
+// inline script with that page's flag list, e.g.
+// petcomCleanArrivalFlags(['created', 'updated', 'activated', 'deactivated']).
+
+function petcomCleanArrivalFlags(flags) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasArrivalFlag = flags.some((flag) => urlParams.has(flag));
+  if (!hasArrivalFlag) return;
+
+  flags.forEach((flag) => urlParams.delete(flag));
+  const cleanedQuery = urlParams.toString();
+  const cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
+  history.replaceState(null, '', cleanedUrl);
+}
+
+window.petcomCleanArrivalFlags = petcomCleanArrivalFlags;
+
+
 // ===== Modals =====================================================
 // Two entry points share the open/close/focus-trap machinery:
 //  1. petcomOpenModal(overlayEl) — opens a modal already in the page

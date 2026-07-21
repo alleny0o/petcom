@@ -11,9 +11,7 @@ const ORDERS_DEFAULT_PAGE_SIZE = 10;
 
 // Pre-setting $labId here means layout_customer.php's guarded lookup
 // never re-queries -- same convention as order_detail.php.
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 // Shared with dashboard.php: previous last-seen marker for the row dots
 // (null = first visit this session, no dots), and this visit becomes
@@ -88,7 +86,6 @@ if ($labId > 0) {
         // Escape LIKE wildcards in the search term itself, same convention
         // as accounts.php/customers.php. One box covers order ID, product
         // user name, nuclide name, and product name.
-        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
         // Matches the order's product user (falling back to the placing
         // customer when none is attached) -- the same COALESCE fallback
         // already used to render the Product User column, so the search
@@ -97,7 +94,7 @@ if ($labId > 0) {
                      OR COALESCE(CONCAT(pu.first_name, ' ', pu.last_name), CONCAT(u.first_name, ' ', u.last_name)) LIKE ? ESCAPE '\\\\'
                      OR n.name LIKE ? ESCAPE '\\\\'
                      OR p.name LIKE ? ESCAPE '\\\\')";
-        $like = '%' . $escaped . '%';
+        $like = like_contains($q);
         array_push($filterParams, $like, $like, $like, $like);
     }
     if ($fulfillment !== '') {
@@ -115,7 +112,7 @@ if ($labId > 0) {
         $filterParams[] = $requestedTo . ' 23:59:59';
     }
 
-    $filterWhereSql = $filterWhere ? ('WHERE ' . implode(' AND ', $filterWhere)) : '';
+    $filterWhereSql = where_clause($filterWhere);
 
     $countsStmt = $pdo->prepare("SELECT o.status, COUNT(*) AS c $joins $filterWhereSql GROUP BY o.status");
     $countsStmt->execute($filterParams);
@@ -139,7 +136,7 @@ if ($labId > 0) {
         $where[] = 'o.status = ?';
         $params[] = $status;
     }
-    $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+    $whereSql = where_clause($where);
 
     $pagination = paginate($totalCount, $page, $pageSize);
     $page = $pagination['page'];
@@ -313,13 +310,7 @@ $pageTitle = 'Orders';
                                 </thead>
                                 <tbody>
                                     <?php foreach ($orders as $o): ?>
-                                        <?php
-                                        // Schema enum is 'cancelled' (double-L); the
-                                        // badges.css variant is 'canceled' -- same
-                                        // mapping as order_detail.php.
-                                        $badgeClass = $o['status'] === 'cancelled' ? 'canceled' : $o['status'];
-                                        $isUpdated = $lastOrdersSeen !== null && strtotime($o['updated_at']) > $lastOrdersSeen;
-                                        ?>
+                                        <?php $isUpdated = $lastOrdersSeen !== null && strtotime($o['updated_at']) > $lastOrdersSeen; ?>
                                         <tr>
                                             <td class="tabular">
                                                 <span class="table-flag"><?php if ($isUpdated): ?><span class="dot dot--info" title="Updated since your last visit"></span><span class="sr-only">Updated since your last visit</span><?php endif; ?></span><?= (int) $o['order_id'] ?>
@@ -337,7 +328,7 @@ $pageTitle = 'Orders';
                                                   // default (muted); "Not chargeable" is the exception
                                                   // that reads at full weight. ?>
                                             <td>
-                                                <div><span class="badge badge--<?= e($badgeClass) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
+                                                <div><span class="badge badge--<?= e($o['status']) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
                                                 <?php if ($o['chargeable']): ?>
                                                     <div class="muted text-sm">Chargeable</div>
                                                 <?php else: ?>

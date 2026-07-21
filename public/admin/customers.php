@@ -6,7 +6,7 @@ require_role('admin');
 
 $pdo = get_db();
 
-const CUSTOMERS_DEFAULT_PAGE_SIZE = 20;
+const CUSTOMERS_DEFAULT_PAGE_SIZE = 10;
 
 $q = trim($_GET['q'] ?? '');
 $instituteId = $_GET['institute_id'] ?? '';
@@ -30,10 +30,10 @@ $params = [];
 if ($q !== '') {
     // Escape LIKE wildcards in the search term itself so a customer
     // searching for a literal "%" or "_" doesn't get wildcard behavior.
-    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+    $like = like_contains($q);
     $where[] = "(CONCAT(u.first_name, ' ', u.last_name) LIKE ? ESCAPE '\\\\' OR u.username LIKE ? ESCAPE '\\\\')";
-    $params[] = '%' . $escaped . '%';
-    $params[] = '%' . $escaped . '%';
+    $params[] = $like;
+    $params[] = $like;
 }
 if ($instituteId !== '' && ctype_digit((string) $instituteId)) {
     $where[] = 'l.institute_id = ?';
@@ -44,7 +44,7 @@ if ($labId !== '' && ctype_digit((string) $labId)) {
     $params[] = (int) $labId;
 }
 
-$whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+$whereSql = where_clause($where);
 
 // Built without the status condition -- reused for the tab counts (each
 // tab's count reflects the current search/institute/lab scope, not
@@ -79,7 +79,7 @@ if ($status === 'active') {
 } elseif ($status === 'inactive') {
     $listWhere[] = 'u.active = 0';
 }
-$listWhereSql = $listWhere ? ('WHERE ' . implode(' AND ', $listWhere)) : '';
+$listWhereSql = where_clause($listWhere);
 
 $pagination = paginate($totalCount, $page, $pageSize);
 $page = $pagination['page'];

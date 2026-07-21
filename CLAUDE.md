@@ -201,7 +201,7 @@ including one of these must treat the following names as taken:
 
 | Layout | Reserved names | Notes |
 |---|---|---|
-| `layout_customer.php` | `$accountStmt`, `$accountRow`, `$accountName`, `$accountInitials`, `$currentPage`, `$labId`, `$labLookupStmt`, `$newOrderFormData`, `$nuclides`, `$products`, `$locations`, `$productUsers` | `$labId` is an optional caller input (looked up only if unset); `$nuclides` is the only guard key — a page that pre-sets `$products`/`$locations`/`$productUsers` but not `$nuclides` gets silently overwritten |
+| `layout_customer.php` | `$accountStmt`, `$accountRow`, `$accountName`, `$accountInitials`, `$currentPage`, `$labId`, `$newOrderFormData`, `$nuclides`, `$products`, `$locations`, `$productUsers` | `$labId` is an optional caller input (looked up via `current_customer_lab_id()` only if unset); `$nuclides` is the only guard key — a page that pre-sets `$products`/`$locations`/`$productUsers` but not `$nuclides` gets silently overwritten |
 | `layout_staff.php` | `$accountStmt`, `$accountRow`, `$accountName`, `$accountInitials`, `$currentPage` | Also reads `$_GET['profile_updated']`/`['profile_error']` and echoes toasts — side effects beyond markup |
 | `layout_admin.php` | staff's five, plus `$accountsChildPages`, `$accountsSectionActive`, `$catalogChildPages`, `$catalogSectionActive`, `$directoryChildPages`, `$directorySectionActive` | Same `$_GET` toast block duplicated verbatim |
 | `head.php` | expects `$pageTitle` from caller | Used unguarded — a page that forgets it gets a PHP notice + broken title |

@@ -31,9 +31,7 @@ function order_json_response(array $payload, int $status = 200): void
 $pdo = get_db();
 $myUserId = (int) $_SESSION['user_id'];
 
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 if ($labId <= 0) {
     // The modal renders a "no lab assigned" notice instead of the form in

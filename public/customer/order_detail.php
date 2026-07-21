@@ -10,9 +10,7 @@ $myUserId = (int) $_SESSION['user_id'];
 // Pre-setting $labId here means layout_customer.php's guarded lookup
 // never re-queries; the save_details path also validates against it
 // before the layout include runs.
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 $orderId = ctype_digit((string) ($_GET['id'] ?? '')) ? (int) $_GET['id'] : 0;
 
@@ -304,16 +302,10 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
                     <a href="/customer/orders.php" class="btn btn--secondary">Back to Orders</a>
                 </div>
             <?php else: ?>
-                <?php
-                // Schema enum is 'cancelled' (double-L); the badges.css
-                // variant is 'canceled' -- mapped here rather than relying
-                // on the base .badge styles happening to look right.
-                $statusBadgeClass = $order['status'] === 'cancelled' ? 'canceled' : $order['status'];
-                ?>
                 <div class="page-header">
                     <div>
                         <a href="/customer/orders.php" class="page-header__back mb-4">&larr; Back to Orders</a>
-                        <span class="badge badge--<?= e($statusBadgeClass) ?> page-header__status"><?= e(ucfirst($order['status'])) ?></span>
+                        <span class="badge badge--<?= e($order['status']) ?> page-header__status"><?= e(ucfirst($order['status'])) ?></span>
                         <?php // Chargeable is the default -- quiet text; the
                               // exception gets the warning chip. ?>
                         <?php if ($order['chargeable']): ?>
@@ -709,26 +701,14 @@ $pageTitle = $order !== null ? 'Order #' . (int) $order['order_id'] : 'Order Not
 <?php if ($order !== null): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // ---- Strip one-time arrival-toast query flags (placed/cancelled/
+    // Strip one-time arrival-toast query flags (placed/cancelled/
     // updated/notes_updated) from the URL bar once their toast has been
     // queued above, so a reload or back-navigation doesn't re-show a
     // toast for an action that already happened. This is separate from
     // the PRG pattern every POST handler above already uses -- PRG is
     // what stops the browser's resubmit-form prompt; this only stops a
-    // stale success toast from replaying on a plain GET reload. ----
-    var arrivalFlags = ['placed', 'cancelled', 'updated', 'notes_updated'];
-    var urlParams = new URLSearchParams(window.location.search);
-    var hasArrivalFlag = arrivalFlags.some(function (flag) {
-        return urlParams.has(flag);
-    });
-    if (hasArrivalFlag) {
-        arrivalFlags.forEach(function (flag) {
-            urlParams.delete(flag);
-        });
-        var cleanedQuery = urlParams.toString();
-        var cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
-        history.replaceState(null, '', cleanedUrl);
-    }
+    // stale success toast from replaying on a plain GET reload.
+    window.petcomCleanArrivalFlags(['placed', 'cancelled', 'updated', 'notes_updated']);
 
     // Browsers' print dialog includes "Save as PDF", so one native
     // mechanism covers both print and PDF -- no libraries (CLAUDE.md).

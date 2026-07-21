@@ -9,9 +9,7 @@ $myUserId = (int) $_SESSION['user_id'];
 
 // Pre-setting $labId here means layout_customer.php's guarded lookup
 // never re-queries -- same convention as orders.php.
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 // Shared with orders.php: previous last-seen marker for the row dots
 // (null = first visit this session, no dots), and this visit becomes
@@ -163,13 +161,7 @@ $pageTitle = 'Dashboard';
                                     </thead>
                                     <tbody>
                                         <?php foreach ($recentOrders as $o): ?>
-                                            <?php
-                                            // Schema enum is 'cancelled' (double-L); the
-                                            // badges.css variant is 'canceled' -- same
-                                            // mapping as orders.php/order_detail.php.
-                                            $badgeClass = $o['status'] === 'cancelled' ? 'canceled' : $o['status'];
-                                            $isUpdated = $lastOrdersSeen !== null && strtotime($o['updated_at']) > $lastOrdersSeen;
-                                            ?>
+                                            <?php $isUpdated = $lastOrdersSeen !== null && strtotime($o['updated_at']) > $lastOrdersSeen; ?>
                                             <tr>
                                                 <td class="tabular">
                                                     <span class="table-flag"><?php if ($isUpdated): ?><span class="dot dot--info" title="Updated since your last visit"></span><span class="sr-only">Updated since your last visit</span><?php endif; ?></span><?= (int) $o['order_id'] ?>
@@ -181,7 +173,7 @@ $pageTitle = 'Dashboard';
                                                       // chargeable is the default (muted), "Not
                                                       // chargeable" the full-weight exception. ?>
                                                 <td>
-                                                    <div><span class="badge badge--<?= e($badgeClass) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
+                                                    <div><span class="badge badge--<?= e($o['status']) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
                                                     <?php if ($o['chargeable']): ?>
                                                         <div class="muted text-sm">Chargeable</div>
                                                     <?php else: ?>

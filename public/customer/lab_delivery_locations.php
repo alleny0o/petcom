@@ -11,22 +11,17 @@ const LOCATIONS_DEFAULT_PAGE_SIZE = 10;
 
 // Pre-setting $labId here means layout_customer.php's guarded lookup
 // never re-queries -- same convention as orders.php / order_detail.php.
-$stmt = $pdo->prepare('SELECT lab_id FROM customers WHERE user_id = ?');
-$stmt->execute([$myUserId]);
-$labId = (int) ($stmt->fetchColumn() ?: 0);
+$labId = current_customer_lab_id($pdo, $myUserId);
 
 // One-shot arrival-toast flags set by the PRG redirects below. Captured
 // into locals then immediately stripped from $_GET so this render's own
 // pagination/search links (built via build_query()) never carry a
 // stale flag forward. That alone doesn't stop a manual reload of the
 // arrived-at URL from re-sending the flag to the server, though -- the
-// client-side history.replaceState() call near the bottom of the page
+// client-side petcomCleanArrivalFlags() call near the bottom of the page
 // handles that half, same fix as order_detail.php's identical bug.
-$justCreated = ($_GET['created'] ?? null) === '1';
-$justUpdated = ($_GET['updated'] ?? null) === '1';
-$justActivated = ($_GET['activated'] ?? null) === '1';
-$justDeactivated = ($_GET['deactivated'] ?? null) === '1';
-unset($_GET['created'], $_GET['updated'], $_GET['activated'], $_GET['deactivated']);
+['created' => $justCreated, 'updated' => $justUpdated, 'activated' => $justActivated, 'deactivated' => $justDeactivated]
+    = consume_arrival_flags(['created', 'updated', 'activated', 'deactivated']);
 
 $q = trim($_GET['q'] ?? '');
 $page = isset($_GET['page']) && ctype_digit((string) $_GET['page']) ? max(1, (int) $_GET['page']) : 1;
@@ -147,12 +142,11 @@ if ($labId > 0) {
     if ($q !== '') {
         // Escape LIKE wildcards in the search term itself, same convention
         // as orders.php/accounts.php/customers.php.
-        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
         $where[] = "name LIKE ? ESCAPE '\\\\'";
-        $params[] = '%' . $escaped . '%';
+        $params[] = like_contains($q);
     }
 
-    $whereSql = 'WHERE ' . implode(' AND ', $where);
+    $whereSql = where_clause($where);
 
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM lab_delivery_locations $whereSql");
     $countStmt->execute($params);
@@ -547,26 +541,14 @@ document.addEventListener('DOMContentLoaded', function () {
   }, null);
   <?php endif; ?>
 
-  // ---- Strip one-time arrival-toast query flags (created/updated/
+  // Strip one-time arrival-toast query flags (created/updated/
   // activated/deactivated) from the URL bar once their toast has been
   // queued above, so a reload or back-navigation doesn't re-show a toast
   // for an action that already happened. Same fix as order_detail.php's
   // identical bug -- PRG already stops the resubmit-form prompt; this
   // separately stops a stale success toast from replaying on a plain GET
-  // reload. ----
-  var arrivalFlags = ['created', 'updated', 'activated', 'deactivated'];
-  var urlParams = new URLSearchParams(window.location.search);
-  var hasArrivalFlag = arrivalFlags.some(function (flag) {
-    return urlParams.has(flag);
-  });
-  if (hasArrivalFlag) {
-    arrivalFlags.forEach(function (flag) {
-      urlParams.delete(flag);
-    });
-    var cleanedQuery = urlParams.toString();
-    var cleanedUrl = window.location.pathname + (cleanedQuery ? '?' + cleanedQuery : '') + window.location.hash;
-    history.replaceState(null, '', cleanedUrl);
-  }
+  // reload.
+  window.petcomCleanArrivalFlags(['created', 'updated', 'activated', 'deactivated']);
 });
 </script>
 <?php endif; ?>

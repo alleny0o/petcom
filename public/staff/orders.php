@@ -67,7 +67,6 @@ $queueFilterWhere = [];
 $queueFilterParams = [];
 
 if ($queueSearch !== '') {
-    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $queueSearch);
     $queueFilterWhere[] = "(CAST(o.order_id AS CHAR) LIKE ? ESCAPE '\\\\'
                  OR COALESCE(CONCAT(pu.first_name, ' ', pu.last_name), CONCAT(u.first_name, ' ', u.last_name)) LIKE ? ESCAPE '\\\\'
                  OR n.name LIKE ? ESCAPE '\\\\'
@@ -75,7 +74,7 @@ if ($queueSearch !== '') {
                  OR l.lab_name LIKE ? ESCAPE '\\\\'
                  OR i.name LIKE ? ESCAPE '\\\\'
                  OR pi.pi_name LIKE ? ESCAPE '\\\\')";
-    $like = '%' . $escaped . '%';
+    $like = like_contains($queueSearch);
     array_push($queueFilterParams, $like, $like, $like, $like, $like, $like, $like);
 }
 if ($queueFulfillment !== '') {
@@ -91,7 +90,7 @@ if ($queueTo !== '') {
     $queueFilterParams[] = $queueTo . ' 23:59:59';
 }
 
-$queueFilterWhereSql = $queueFilterWhere ? ('WHERE ' . implode(' AND ', $queueFilterWhere)) : '';
+$queueFilterWhereSql = where_clause($queueFilterWhere);
 
 $queueCountsStmt = $pdo->prepare("SELECT o.status, COUNT(*) AS c $queueJoins $queueFilterWhereSql GROUP BY o.status");
 $queueCountsStmt->execute($queueFilterParams);
@@ -131,7 +130,7 @@ if ($queueStatus !== '') {
     $queueWhere[] = 'o.status = ?';
     $queueParams[] = $queueStatus;
 }
-$queueWhereSql = $queueWhere ? ('WHERE ' . implode(' AND ', $queueWhere)) : '';
+$queueWhereSql = where_clause($queueWhere);
 
 $queuePagination = paginate($queueTotalCount, $queuePage, $queuePageSize);
 $queuePage = $queuePagination['page'];
@@ -288,12 +287,6 @@ $pageTitle = 'Order Queue';
                             </thead>
                             <tbody>
                                 <?php foreach ($queueOrders as $o): ?>
-                                    <?php
-                                    // Schema enum is 'cancelled' (double-L); the
-                                    // badges.css variant is 'canceled' -- same
-                                    // mapping as customer/orders.php.
-                                    $queueBadgeClass = $o['status'] === 'cancelled' ? 'canceled' : $o['status'];
-                                    ?>
                                     <tr>
                                         <td class="tabular"><?= (int) $o['order_id'] ?></td>
                                         <td class="tabular nowrap"><?= e(date('M j, Y H:i', strtotime($o['requested_datetime']))) ?></td>
@@ -310,7 +303,7 @@ $pageTitle = 'Order Queue';
                                               // chargeable" is the exception that reads at full
                                               // weight. ?>
                                         <td>
-                                            <div><span class="badge badge--<?= e($queueBadgeClass) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
+                                            <div><span class="badge badge--<?= e($o['status']) ?>"><?= e(ucfirst($o['status'])) ?></span></div>
                                             <?php if ($o['chargeable']): ?>
                                                 <div class="muted text-sm">Chargeable</div>
                                             <?php else: ?>
