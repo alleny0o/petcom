@@ -8,9 +8,6 @@
 .text-sm {
   font-size: 13px;
 }
-.mt-0 {
-  margin-top: 0;
-}
 .mt-2 {
   margin-top: var(--sp-2);
 }
@@ -32,11 +29,6 @@
 
 .flex {
   display: flex;
-}
-.flex-between {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 .gap-2 {
   gap: var(--sp-2);

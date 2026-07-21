@@ -236,38 +236,6 @@
   min-width: 96px;
 }
 
-/* Horizontal step strip: pending → accepted → completed */
-.status-timeline {
-  display: flex;
-  gap: var(--sp-2);
-  list-style: none;
-  flex-wrap: wrap;
-}
-.status-timeline__item {
-  flex: 1 1 0;
-  min-width: 110px;
-  padding: var(--sp-2) var(--sp-3);
-  border-top: 3px solid var(--color-border-hr);
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-}
-.status-timeline__item--current {
-  border-top-color: var(--accent-600);
-  color: var(--color-text-primary);
-}
-.status-timeline__label {
-  display: block;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 11px;
-}
-.status-timeline__meta {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-}
-
 /* Append-only comment thread */
 .comment-list {
   list-style: none;

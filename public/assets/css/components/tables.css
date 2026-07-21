@@ -52,17 +52,6 @@
   background: var(--color-bg-primary);
 }
 
-/* Friendly empty state inside a table card (see also components/feedback.css) */
-.table-empty {
-  padding: var(--sp-6) var(--sp-4);
-  text-align: center;
-  color: var(--color-text-tertiary);
-  font-size: 14px;
-}
-.table-empty .btn {
-  margin-top: var(--sp-3);
-}
-
 /* --- Table card (title bar + controls above a table) --- */
 
 .table-card {

@@ -76,14 +76,6 @@
   }
 }
 
-/* Flex layout to put the 'Add Product' button on the right */
-.page-header-flex {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-
 /* ============================================================
    CARDS / PANELS
    ============================================================ */
@@ -97,13 +89,6 @@
   margin-top: var(--sp-5);
   margin-bottom: var(--sp-5);
   transition: border-color 0.15s ease;
-}
-/* Unmistakable "you're editing this" signal while the inline edit form
-   is open, so the state change reads as more than just the Edit
-   button quietly vanishing. */
-.card.is-editing {
-  border-color: var(--accent-500);
-  border-left-width: 3px;
 }
 .card__title {
   font-size: 16px;
