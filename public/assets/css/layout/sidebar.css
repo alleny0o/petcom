@@ -397,14 +397,9 @@
 }
 
 /* --- App topbar (always present, all breakpoints) ---
-   Sits in the .app-shell "header" grid area, so it participates
-   in normal flow just like .app-header would. The only thing
+   Sits in the .app-shell "header" grid area. The only thing
    that's mobile-specific is the hamburger button inside it — the
-   bar itself doesn't come and go with screen size.
-   NOTE: no page currently includes .app-header alongside this —
-   if one ever does, both are targeting the same "header" grid
-   area and will need to be reconciled (likely: move the
-   hamburger into .app-header instead of keeping this separate). */
+   bar itself doesn't come and go with screen size. */
 
 .app-topbar {
   grid-area: header;
