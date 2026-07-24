@@ -42,6 +42,7 @@ $old = [
     'email'      => '',
     'first_name' => '',
     'last_name'  => '',
+    'phone'      => '',
     'role'       => 'staff',
 ];
 
@@ -60,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['email'] = trim($_POST['email'] ?? '');
     $old['first_name'] = trim($_POST['first_name'] ?? '');
     $old['last_name'] = trim($_POST['last_name'] ?? '');
+    $old['phone'] = trim($_POST['phone'] ?? '');
     $old['role'] = ($_POST['role'] ?? '') === 'admin' ? 'admin' : 'staff';
 
     if ($old['email'] === '' || !filter_var($old['email'], FILTER_VALIDATE_EMAIL)) {
@@ -78,6 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fieldErrors['last_name'] = 'Last name is required.';
     } elseif (mb_strlen($old['last_name']) > 100) {
         $fieldErrors['last_name'] = 'Last name must be 100 characters or fewer.';
+    }
+    if ($old['phone'] === '') {
+        $fieldErrors['phone'] = 'Phone is required.';
+    } elseif (!preg_match('/^[0-9()+.\-\s]+$/', $old['phone']) || !preg_match('/[0-9]/', $old['phone'])) {
+        $fieldErrors['phone'] = 'Phone must contain only digits, spaces, dashes, parentheses, and an optional leading +.';
+    } elseif (mb_strlen($old['phone']) > 20) {
+        $fieldErrors['phone'] = 'Phone must be 20 characters or fewer.';
     }
 
     if (!$fieldErrors) {
@@ -98,8 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tempHash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
             $pdo->prepare(
-                'INSERT INTO users (username, password_hash, first_name, last_name, must_change_password, active) VALUES (?, ?, ?, ?, 1, 1)'
-            )->execute([$old['email'], $tempHash, $old['first_name'], $old['last_name']]);
+                'INSERT INTO users (username, password_hash, first_name, last_name, phone, must_change_password, active) VALUES (?, ?, ?, ?, ?, 1, 1)'
+            )->execute([$old['email'], $tempHash, $old['first_name'], $old['last_name'], $old['phone']]);
             $newUserId = (int) $pdo->lastInsertId();
 
             $pdo->prepare('INSERT INTO staff (user_id) VALUES (?)')
@@ -426,6 +435,12 @@ $pageTitle = 'Accounts';
                                     <input type="text" id="new-account-last-name" name="last_name" value="<?= e($old['last_name']) ?>" required>
                                     <?= field_error($fieldErrors, 'last_name') ?>
                                 </div>
+                            </div>
+
+                            <div class="<?= field_class($fieldErrors, 'phone') ?>">
+                                <label for="new-account-phone">Phone <span class="required-mark">*</span></label>
+                                <input type="text" id="new-account-phone" name="phone" value="<?= e($old['phone']) ?>" required>
+                                <?= field_error($fieldErrors, 'phone') ?>
                             </div>
 
                             <div class="field">
