@@ -275,11 +275,11 @@ admin comes from the command line:
 
 ```bash
 cd /var/www/petorders
-php tools/bootstrap_admin.php jane.smith@example.com Jane Smith
+php tools/bootstrap_admin.php jane.smith@example.com Jane Smith 301-555-0199
 ```
 
-Arguments: `<username> <first_name> <last_name>`. Username must be a
-valid email address. It's the login.
+Arguments: `<username> <first_name> <last_name> <phone>`. Username must
+be a valid email address. It's the login.
 
 What it does:
 

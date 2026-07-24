@@ -22,7 +22,7 @@ function fetch_account(PDO $pdo, int $userId): ?array
 {
     $stmt = $pdo->prepare(
         'SELECT u.user_id, u.username, u.active, u.created_at,
-                u.first_name, u.last_name,
+                u.first_name, u.last_name, u.phone,
                 (a.user_id IS NOT NULL) AS is_admin
          FROM staff s
          JOIN users u ON u.user_id = s.user_id
@@ -44,8 +44,8 @@ $profileErrors = [];
 $tempPasswordReveal = null;
 
 $profileOld = $account !== null
-    ? ['first_name' => $account['first_name'], 'last_name' => $account['last_name']]
-    : ['first_name' => '', 'last_name' => ''];
+    ? ['first_name' => $account['first_name'], 'last_name' => $account['last_name'], 'phone' => $account['phone']]
+    : ['first_name' => '', 'last_name' => '', 'phone' => ''];
 
 if ($account !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -55,6 +55,7 @@ if ($account !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'edit_profile') {
         $profileOld['first_name'] = trim($_POST['first_name'] ?? '');
         $profileOld['last_name'] = trim($_POST['last_name'] ?? '');
+        $profileOld['phone'] = trim($_POST['phone'] ?? '');
 
         if ($profileOld['first_name'] === '') {
             $profileErrors['first_name'] = 'First name is required.';
@@ -66,16 +67,23 @@ if ($account !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (mb_strlen($profileOld['last_name']) > 100) {
             $profileErrors['last_name'] = 'Last name must be 100 characters or fewer.';
         }
+        if ($profileOld['phone'] === '') {
+            $profileErrors['phone'] = 'Phone is required.';
+        } elseif (!preg_match('/^[0-9()+.\-\s]+$/', $profileOld['phone']) || !preg_match('/[0-9]/', $profileOld['phone'])) {
+            $profileErrors['phone'] = 'Phone must contain only digits, spaces, dashes, parentheses, and an optional leading +.';
+        } elseif (mb_strlen($profileOld['phone']) > 20) {
+            $profileErrors['phone'] = 'Phone must be 20 characters or fewer.';
+        }
 
         if ($profileErrors && request_wants_json()) {
             json_response(['ok' => false, 'errors' => $profileErrors], 422);
         }
 
         if (!$profileErrors) {
-            $pdo->prepare('UPDATE users SET first_name = ?, last_name = ? WHERE user_id = ?')
-                ->execute([$profileOld['first_name'], $profileOld['last_name'], $userId]);
+            $pdo->prepare('UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE user_id = ?')
+                ->execute([$profileOld['first_name'], $profileOld['last_name'], $profileOld['phone'], $userId]);
             $account = fetch_account($pdo, $userId);
-            $profileOld = ['first_name' => $account['first_name'], 'last_name' => $account['last_name']];
+            $profileOld = ['first_name' => $account['first_name'], 'last_name' => $account['last_name'], 'phone' => $account['phone']];
             $flash = ['type' => 'success', 'message' => 'Profile updated.'];
             // No redirect target -- edit_profile alone re-renders in
             // place rather than PRGing (unlike toggle_active/reset_password
@@ -282,6 +290,12 @@ $pageTitle = $account !== null ? ($account['first_name'] . ' ' . $account['last_
                                 <input type="text" id="last_name" name="last_name" value="<?= e($profileOld['last_name']) ?>" required>
                                 <?= field_error($profileErrors, 'last_name') ?>
                             </div>
+                        </div>
+
+                        <div class="<?= field_class($profileErrors, 'phone') ?>">
+                            <label for="phone">Phone <span class="required-mark">*</span></label>
+                            <input type="text" id="phone" name="phone" value="<?= e($profileOld['phone']) ?>" required>
+                            <?= field_error($profileErrors, 'phone') ?>
                         </div>
 
                         <div class="form-section">
