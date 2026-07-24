@@ -170,7 +170,7 @@ New Order modal's backing data).
 | Naming a variable on a page that includes a layout    | Check the layout for its reserved names first                                                            |
 | `head.php`                                            | Expects `$pageTitle` from the caller                                                                     |
 | Customer layout                                       | Reads a page-owned loose `$labId` (deliberate exception)                                                 |
-| `customer/dashboard.php`, `customer/order_detail.php` | Read `$petcomLayout` fields after including the layout. Treat as an API surface if you touch the layouts |
+| `customer/dashboard.php`, `customer/order_detail.php` | Read `$petordersLayout` fields after including the layout. Treat as an API surface if you touch the layouts |
 
 ## Shared helpers: check here before writing new logic
 
