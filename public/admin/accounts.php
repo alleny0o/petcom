@@ -64,8 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($old['email'] === '' || !filter_var($old['email'], FILTER_VALIDATE_EMAIL)) {
         $fieldErrors['email'] = 'A valid email is required.';
-    } elseif (!preg_match('/@nih\.gov$/i', $old['email'])) {
-        $fieldErrors['email'] = 'Email must be an @nih.gov address.';
     } elseif (mb_strlen($old['email']) > 50) {
         // The email becomes users.username, which is VARCHAR(50).
         $fieldErrors['email'] = 'Email must be 50 characters or fewer.';
@@ -413,7 +411,7 @@ $pageTitle = 'Accounts';
                             <div class="<?= field_class($fieldErrors, 'email') ?>">
                                 <label for="new-account-email">Email <span class="required-mark">*</span></label>
                                 <input type="email" id="new-account-email" name="email" value="<?= e($old['email']) ?>" required data-modal-focus>
-                                <span class="field-hint">Must be an @nih.gov address &mdash; it becomes their username.</span>
+                                <span class="field-hint">This will become their username.</span>
                                 <?= field_error($fieldErrors, 'email') ?>
                             </div>
 
